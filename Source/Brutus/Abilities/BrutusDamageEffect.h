@@ -6,7 +6,8 @@
 
 class UAbilitySystemComponent;
 
-// Instant damage: adds the SetByCaller value named DamageName (pass it negative) to Health.
+// Instant damage through UBrutusDamageExecution: the SetByCaller value DamageName (positive)
+// scaled by the target's DamageTakenMultiplier is subtracted from Health.
 UCLASS()
 class BRUTUS_API UBrutusDamageEffect : public UGameplayEffect
 {

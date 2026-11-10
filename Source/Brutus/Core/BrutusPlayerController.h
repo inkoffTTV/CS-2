@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Heroes/BrutusHeroRegistry.h"
 #include "BrutusPlayerController.generated.h"
 
 class UInputAction;
@@ -17,6 +18,10 @@ enum class EBrutusInput : uint8
 	Slide,
 	Fire,
 	Interact,
+	Ability1, // Q
+	Ability2, // F
+	Ultimate, // R
+	AltFire,  // right mouse button
 	Count UMETA(Hidden)
 };
 
@@ -31,6 +36,11 @@ public:
 	virtual void BeginPlay() override;
 
 	const UInputAction* GetAction(EBrutusInput Input) const;
+
+	// Switch to another hero: the current hero is removed (not counted as a death) and the player
+	// respawns at once as the new one. Console: brutus.Hero Clavus|Malleus
+	UFUNCTION(Server, Reliable)
+	void Server_SelectHero(EBrutusHero Hero);
 
 private:
 	void BuildInput();

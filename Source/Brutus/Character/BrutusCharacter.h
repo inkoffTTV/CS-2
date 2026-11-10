@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
+#include "Abilities/BrutusGameplayAbility.h"
 #include "GameFramework/Character.h"
 #include "BrutusCharacter.generated.h"
 
@@ -18,6 +19,8 @@ class ABrutusCharacter;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnHeroTeleported, ABrutusCharacter*);
 
 // Greybox hero: capsule + cylinder, over-the-shoulder camera, Brutus movement.
+// Heroes subclass it (see BrutusHeroRegistry.h for naming): set the capsule and HeroMaxHealth in the
+// constructor, override GetHeroAbilities() and ConfigureWeapon().
 UCLASS()
 class BRUTUS_API ABrutusCharacter : public ACharacter, public IAbilitySystemInterface
 {
@@ -40,6 +43,16 @@ public:
 
 	UBrutusHitscanWeaponComponent* GetWeapon() const { return Weapon; }
 
+	// Ability classes granted (with their InputId) when the hero is possessed. Server.
+	virtual TArray<TSubclassOf<UBrutusGameplayAbility>> GetHeroAbilities() const { return {}; }
+
+	// Tunes the weapon for this hero. Called on every machine from PostInitializeComponents.
+	virtual void ConfigureWeapon(UBrutusHitscanWeaponComponent& InWeapon) {}
+
+	// Max health set on the player's attribute set each time this hero is possessed.
+	UPROPERTY(EditDefaultsOnly, Category = "Hero")
+	float HeroMaxHealth = 250.f;
+
 	// Invisible heroes (Nemo) are only revealed to enemies up close.
 	bool IsHiddenForVision() const { return bHiddenForVision; }
 	void SetHiddenForVision(bool bHidden) { bHiddenForVision = bHidden; }
@@ -47,7 +60,9 @@ public:
 	// Enemies the viewer's team cannot see are not replicated to that viewer.
 	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
 
+	virtual void PostInitializeComponents() override;
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
 	virtual void OnRep_PlayerState() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -57,6 +72,9 @@ public:
 
 protected:
 	virtual bool CanJumpInternal_Implementation() const override;
+
+	// Scales the greybox cylinder to the current capsule (call after resizing the capsule).
+	void FitBodyMeshToCapsule();
 
 private:
 	void OnMove(const FInputActionValue& Value);
@@ -69,9 +87,13 @@ private:
 	void OnInteract();
 	void OnFireStarted();
 	void OnFireCompleted();
+	void OnAbilityInputPressed(EBrutusAbilityInput InputId);
+	void OnAbilityInputReleased(EBrutusAbilityInput InputId);
 
-	void FitBodyMeshToCapsule();
 	void InitAbilitySystem();
+	// Server, on possess: fresh hero state (no carried-over effects, full health) and this hero's abilities.
+	void ResetHeroState(ABrutusPlayerState& PS);
+	void GrantHeroAbilities(UAbilitySystemComponent& ASC);
 	void HandleOutOfHealth(AActor* DamageInstigator);
 
 	UPROPERTY(VisibleAnywhere)
