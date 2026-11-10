@@ -1,0 +1,40 @@
+# BRUTUS
+
+Командный шутер от третьего лица с MOBA-механиками (линии, крипы, трон). Unreal Engine 5, C++, GAS.
+
+- Дизайн: [`docs/design.md`](docs/design.md)
+- Текущий план: [`docs/plans/2026-11-10-m1-movement-shooting.md`](docs/plans/2026-11-10-m1-movement-shooting.md)
+
+## Структура
+
+- `Source/BrutusSim/` — игровая математика без зависимостей от движка (стамина, движение, зиплайны, история хитбоксов, лучи, видимость команды).
+- `Source/Brutus/` — обвязка UE: персонаж, движение с предсказанием, GAS, компенсация лага, видимость, серая арена.
+- `SimTests/` — нативные юнит-тесты `BrutusSim` (CMake + doctest).
+
+## Тесты математики (без Unreal)
+
+```bash
+SimTests/run.sh
+```
+
+## Первая сборка в Unreal
+
+1. ПКМ по `Brutus.uproject` → *Switch Unreal Engine version* → выбрать установленный UE 5.x.
+2. ПКМ по `Brutus.uproject` → *Generate Visual Studio project files*, открыть `.sln`, собрать `BrutusEditor` (Development Editor, Win64).
+3. В редакторе: *File → New Level → Basic*, удалить пол из шаблона, сохранить как `Content/Maps/M_Greybox`.
+4. Перетащить в уровень `BrutusGreyboxArena` (в точку 0,0,0) и два `Player Start`:
+   - первый: позиция (-2000, -500, 150), в деталях *Player Start Tag* = `Team0`;
+   - второй: позиция (2000, 500, 150), *Player Start Tag* = `Team1`.
+5. *Play* → *Number of Players* 2, *Net Mode* — *Play As Listen Server*.
+
+## Управление
+
+WASD — движение, мышь — обзор, ЛКМ — стрельба, Space — прыжок (второй в воздухе тратит стамину), Shift — рывок, Ctrl/C — скольжение (на бегу) или присед, E — зацепиться за зиплайн / отцепиться.
+
+## Отладочные команды (консоль `~`)
+
+- `NetEmulation.PktLag 150`, `NetEmulation.PktLoss 5` — имитация плохой сети.
+- `p.NetShowCorrections 1` — показывать коррекции движения от сервера.
+- `brutus.DebugLagComp 1` — рисовать откатанные хитбоксы (зелёные) и текущие (красные) при каждом выстреле.
+- `brutus.DisableVision 1` — отключить скрытие невидимых врагов.
+- `brutus.DamageSelf 300` — нанести урон себе (на хосте).
