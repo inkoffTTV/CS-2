@@ -21,10 +21,8 @@ SimTests/run.sh
 
 1. ПКМ по `Brutus.uproject` → *Switch Unreal Engine version* → выбрать установленный UE 5.x.
 2. ПКМ по `Brutus.uproject` → *Generate Visual Studio project files*, открыть `.sln`, собрать `BrutusEditor` (Development Editor, Win64).
-3. В редакторе: *File → New Level → Basic*, удалить пол из шаблона, сохранить как `Content/Maps/M_Greybox`.
-4. Перетащить в уровень `BrutusGreyboxArena` (в точку 0,0,0) и два `Player Start`:
-   - первый: позиция (-2000, -500, 150), в деталях *Player Start Tag* = `Team0`;
-   - второй: позиция (2000, 500, 150), *Player Start Tag* = `Team1`.
+3. Карта: в редакторе *Tools → Execute Python Script…* → `Tools/create_greybox_map.py`. Скрипт создаёт `Content/Maps/M_Greybox`: арену, точки старта Оптиматов (`Team0`) и Популяров (`Team1`), свет, небо, туман, материалы партий, базы с тронами и знамёнами. Примерный вид — `Art/Previews/arena_mockup.png`. Перезапуск пересоздаёт карту.
+4. Открыть `M_Greybox`, если редактор не открыл её сам.
 5. *Play* → *Number of Players* 2, *Net Mode* — *Play As Listen Server*.
 6. (Необязательно) Модели героев: *Tools → Execute Python Script* → `Tools/import_hero_art.py`. Анимации — по шагам в [`docs/guides/hero-art-setup.md`](docs/guides/hero-art-setup.md). Без моделей остаются серые примитивы.
 
