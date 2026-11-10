@@ -9,6 +9,7 @@
 #include "Core/BrutusHUD.h"
 #include "Core/BrutusPlayerController.h"
 #include "Core/BrutusPlayerState.h"
+#include "Core/BrutusTeams.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -27,7 +28,7 @@ FString ABrutusGameMode::InitNewPlayer(APlayerController* NewPlayerController, c
 	if (ABrutusPlayerState* PS = NewPlayerController ? NewPlayerController->GetPlayerState<ABrutusPlayerState>() : nullptr)
 	{
 		PS->SetTeamId(PickTeamForNewPlayer(PS));
-		UE_LOG(LogBrutus, Log, TEXT("New player joined team %d"), PS->GetTeamId());
+		UE_LOG(LogBrutus, Log, TEXT("New player joined the %s"), BrutusTeams::GetTeamName(PS->GetTeamId()));
 	}
 	return Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
 }

@@ -3,6 +3,7 @@
 #include "Abilities/BrutusAttributeSet.h"
 #include "Character/BrutusCharacter.h"
 #include "Core/BrutusPlayerState.h"
+#include "Core/BrutusTeams.h"
 #include "Character/BrutusMovementComponent.h"
 #include "Combat/BrutusHitscanWeaponComponent.h"
 #include "Engine/Canvas.h"
@@ -27,7 +28,7 @@ void ABrutusHUD::DrawHUD()
 	{
 		const UBrutusAttributeSet* Attr = PS->GetAttributes();
 		DrawTextRow(FString::Printf(TEXT("Health %.0f / %.0f"), Attr->GetHealth(), Attr->GetMaxHealth()), Row++);
-		DrawTextRow(FString::Printf(TEXT("Team %d"), PS->GetTeamId()), Row++);
+		DrawTextRow(BrutusTeams::GetTeamName(PS->GetTeamId()), Row++, BrutusTeams::GetTeamColor(PS->GetTeamId()));
 
 		// Debug: enemies that exist on this client are exactly the ones the server lets us see.
 		int32 VisibleEnemies = 0;
