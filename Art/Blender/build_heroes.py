@@ -6,6 +6,7 @@ renders Workbench previews and re-imports the FBX files to verify size/orientati
     pip install bpy==5.3.0
     python3 Art/Blender/build_heroes.py            # build + export + previews + verify
     python3 Art/Blender/build_heroes.py --no-render
+    python3 Art/Blender/build_heroes.py --export-posed-static   # ONLY SM_Hero_*_Posed.fbx (leaves the other FBX alone)
 
 Conventions (see Art/README.md):
   * 1 Blender unit = 1 cm (scene unit scale 0.01, length cm). Feet at the origin.
@@ -950,6 +951,82 @@ def render_previews(heroes):
         arm.location.y = 0
 
 
+def bake_posed_static(arm, mesh, wpn, extra, hero):
+    """Pose the rig like the preview, bake hero + held weapon into ONE static mesh (no armature, no weights)."""
+    pose_hero(arm, hero)
+    place_weapon(arm, wpn, extra, snap_ground=hero == "Malleus")
+    bpy.context.view_layer.update()
+    deps = bpy.context.evaluated_depsgraph_get()
+    parts = []
+    for src in (mesh, wpn):
+        ev = src.evaluated_get(deps)
+        me = bpy.data.meshes.new_from_object(ev, preserve_all_data_layers=True, depsgraph=deps)
+        me.transform(ev.matrix_world)  # bake the pose / weapon placement into the vertices (normals follow)
+        ob = bpy.data.objects.new(f"{hero}_part", me)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.vertex_groups.clear()
+        parts.append(ob)
+    select_only(parts)
+    with bpy.context.temp_override(object=parts[0], active_object=parts[0], selected_objects=parts):
+        bpy.ops.object.join()
+    obj = parts[0]
+    obj.name = obj.data.name = f"SM_Hero_{hero}_Posed"
+    obj.parent = None
+    obj.matrix_world = Matrix.Identity(4)
+    for m in list(obj.modifiers):
+        obj.modifiers.remove(m)
+    # feet on the floor (pose tilts the soles by a few degrees)
+    lo = min(v.co.z for v in obj.data.vertices)
+    if abs(lo) > 1e-4:
+        obj.data.transform(Matrix.Translation((0, 0, -lo)))
+        print(f"[posed] {hero}: shifted by {-lo:.2f} cm to put min z at 0")
+    return obj
+
+
+def verify_posed(names, export_dir):
+    """Re-import the posed static FBX files and check height / floor / facing / budget (fails loudly)."""
+    exp = {"Clavus": dict(hmin=190.0, hmax=200.0), "Malleus": dict(hmin=208.0, hmax=212.0)}
+    report = {}
+    for hero in names:
+        fname = f"SM_Hero_{hero}_Posed.fbx"
+        reset_scene()
+        bpy.ops.import_scene.fbx(filepath=str(export_dir / fname))
+        objs = list(bpy.context.scene.objects)
+        meshes = [o for o in objs if o.type == "MESH"]
+        assert len(meshes) == 1 and len(objs) == 1, f"{fname}: expected exactly 1 mesh object, got {[o.name for o in objs]}"
+        assert not any(o.type == "ARMATURE" for o in objs) and not meshes[0].vertex_groups \
+            and not meshes[0].modifiers, f"{fname}: not a plain static mesh"
+        o = meshes[0]
+        pts = [o.matrix_world @ v.co for v in o.data.vertices]
+        mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        tris = tri_count(o)
+        mats = sorted({m.name for m in o.data.materials if m})
+        e = exp[hero]
+        ok = {
+            "height": e["hmin"] <= mx.z <= e["hmax"],
+            "floor": abs(mn.z) < 0.5,
+            "tris": tris < 20000,
+            "materials": bool(mats) and all(m.startswith("M_") for m in mats),
+            "custom_normals": o.data.has_custom_normals,
+        }
+        # facing: UE +X == Blender +X (hero front), UE right +Y == Blender -Y
+        if hero == "Clavus":
+            ok["facing"] = mx.x > 40 and mx.x > -mn.x + 10   # gun muzzle / toes stick out to the front (+X)
+            ok["right"] = mn.y < -(mx.y) - 2                 # right pad / gun hand on the -Y (UE +Y) side
+        else:
+            ok["facing"] = mx.x > 0 and abs(mx.x) > abs(mn.x) - 5
+            ok["right"] = mn.y < -(mx.y) + 2                 # hammer in the right hand: UE +Y
+        r = dict(min=[round(c, 1) for c in mn], max=[round(c, 1) for c in mx], tris=tris, materials=mats,
+                 checks=ok, header=fbx_global_settings(export_dir / fname))
+        report[fname] = r
+        print(f"[verify] {fname}: z {mn.z:.1f}..{mx.z:.1f} cm, x {mn.x:.1f}..{mx.x:.1f}, "
+              f"y {mn.y:.1f}..{mx.y:.1f} (Blender; UE y = -y), tris {tris}, materials {mats}, checks {ok}")
+        bad = [k for k, v in ok.items() if not v]
+        assert not bad, f"{fname}: posed verify FAILED: {bad}"
+    return report
+
+
 # --------------------------------------------------------------------------------------
 
 
@@ -962,7 +1039,8 @@ def main():
     #               yaw -90). Default: face UE +X (matches the current C++, mesh component unrotated).
     # --export-dir DIR : write the FBX files somewhere else (e.g. for a --ue-face-y variant).
     face_y = "--ue-face-y" in sys.argv
-    do_render = "--no-render" not in sys.argv and not face_y
+    only_posed = "--export-posed-static" in sys.argv   # ONLY the posed static meshes, nothing else is (re)written
+    do_render = "--no-render" not in sys.argv and not face_y and not only_posed
     export_dir = Path(arg_value("--export-dir", EXPORT_DIR)).resolve()
     reset_scene()
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -979,25 +1057,41 @@ def main():
 
     stats = {o.name: tri_count(o) for o in (c_mesh, gun, m_mesh, hammer)}
     print("[tris]", stats)
-    export_skeletal(c_arm, c_mesh, export_dir / "SK_Hero_Clavus.fbx")
-    export_skeletal(m_arm, m_mesh, export_dir / "SK_Hero_Malleus.fbx")
-    export_static(gun, export_dir / "SM_Wpn_Clavus_Nailgun.fbx")
-    export_static(hammer, export_dir / "SM_Wpn_Malleus_Hammer.fbx")
+    heroes = {
+        "Clavus": (c_arm, c_mesh, gun, R("Y", -4)),
+        "Malleus": (m_arm, m_mesh, hammer, R("X", 180) @ R("Y", 6)),
+    }
+    report = {}
+    if not only_posed:
+        export_skeletal(c_arm, c_mesh, export_dir / "SK_Hero_Clavus.fbx")
+        export_skeletal(m_arm, m_mesh, export_dir / "SK_Hero_Malleus.fbx")
+        export_static(gun, export_dir / "SM_Wpn_Clavus_Nailgun.fbx")
+        export_static(hammer, export_dir / "SM_Wpn_Malleus_Hammer.fbx")
 
     if do_render:
-        render_previews({
-            "Clavus": (c_arm, c_mesh, gun, R("Y", -4)),
-            "Malleus": (m_arm, m_mesh, hammer, R("X", 180) @ R("Y", 6)),
-        })
+        render_previews(heroes)
 
-    report = verify_exports({
-        "SK_Hero_Clavus.fbx": dict(height=199.6, budget=15000),   # crown 190, pad cap 199.6
-        "SK_Hero_Malleus.fbx": dict(height=210.0, budget=15000),
-        "SM_Wpn_Clavus_Nailgun.fbx": dict(budget=4000),
-        "SM_Wpn_Malleus_Hammer.fbx": dict(budget=4000),
-    }, export_dir, face_y)
+    # posed static meshes (default orientation only: facing UE +X). Built last: it leaves the rig posed.
+    export_posed = (only_posed or not face_y)
+    if face_y and only_posed:
+        raise SystemExit("--export-posed-static is only defined for the default orientation (UE +X)")
+    if export_posed:
+        for name, (arm, mesh, wpn, extra) in heroes.items():
+            posed = bake_posed_static(arm, mesh, wpn, extra, name)
+            export_static(posed, export_dir / f"SM_Hero_{name}_Posed.fbx")
+
+    if not only_posed:
+        report = verify_exports({
+            "SK_Hero_Clavus.fbx": dict(height=199.6, budget=15000),   # crown 190, pad cap 199.6
+            "SK_Hero_Malleus.fbx": dict(height=210.0, budget=15000),
+            "SM_Wpn_Clavus_Nailgun.fbx": dict(budget=4000),
+            "SM_Wpn_Malleus_Hammer.fbx": dict(budget=4000),
+        }, export_dir, face_y)
+    if export_posed:
+        report.update(verify_posed(list(heroes), export_dir))
     SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
-    (SCRATCH_DIR / ("verify_report_face_y.json" if face_y else "verify_report.json")).write_text(json.dumps(report, indent=2, default=str))
+    rname = "verify_report_posed.json" if only_posed else ("verify_report_face_y.json" if face_y else "verify_report.json")
+    (SCRATCH_DIR / rname).write_text(json.dumps(report, indent=2, default=str))
     print("[done]")
 
 
