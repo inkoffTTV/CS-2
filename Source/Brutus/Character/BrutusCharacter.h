@@ -9,6 +9,8 @@ class UBrutusMovementComponent;
 class UCameraComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
+class UBrutusHitboxComponent;
+class UBrutusHitscanWeaponComponent;
 struct FInputActionValue;
 class ABrutusPlayerState;
 class ABrutusCharacter;
@@ -36,6 +38,8 @@ public:
 	FOnHeroTeleported OnTeleported;
 	void NotifyTeleported() { OnTeleported.Broadcast(this); }
 
+	UBrutusHitscanWeaponComponent* GetWeapon() const { return Weapon; }
+
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -56,6 +60,8 @@ private:
 	void OnSlideStarted();
 	void OnSlideCompleted();
 	void OnInteract();
+	void OnFireStarted();
+	void OnFireCompleted();
 
 	void FitBodyMeshToCapsule();
 	void InitAbilitySystem();
@@ -69,4 +75,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> BodyMesh;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBrutusHitboxComponent> Hitbox;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBrutusHitscanWeaponComponent> Weapon;
 };

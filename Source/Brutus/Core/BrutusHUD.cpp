@@ -4,6 +4,7 @@
 #include "Character/BrutusCharacter.h"
 #include "Core/BrutusPlayerState.h"
 #include "Character/BrutusMovementComponent.h"
+#include "Combat/BrutusHitscanWeaponComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 
@@ -17,6 +18,10 @@ void ABrutusHUD::DrawHUD()
 	DrawCrosshair();
 
 	int32 Row = 0;
+	if (const APlayerState* OwnPS = GetOwningPlayerController() ? GetOwningPlayerController()->PlayerState : nullptr)
+	{
+		DrawTextRow(FString::Printf(TEXT("Ping %.0f ms"), OwnPS->GetPingInMilliseconds()), Row++);
+	}
 	if (const ABrutusPlayerState* PS = GetOwningPlayerController() ? GetOwningPlayerController()->GetPlayerState<ABrutusPlayerState>() : nullptr)
 	{
 		const UBrutusAttributeSet* Attr = PS->GetAttributes();
@@ -28,6 +33,20 @@ void ABrutusHUD::DrawHUD()
 		if (const UBrutusMovementComponent* Move = Hero->GetBrutusMovement())
 		{
 			DrawTextRow(FString::Printf(TEXT("Stamina %.1f / %d"), Move->GetStaminaCharges(), Move->GetMaxStaminaCharges()), Row++);
+		}
+		// Hit marker: an X around the crosshair for 0.2 s after a confirmed hit (red on headshot).
+		if (const UBrutusHitscanWeaponComponent* Weapon = Hero->GetWeapon())
+		{
+			if (GetWorld()->GetTimeSeconds() - Weapon->GetLastHitMarkerTime() < 0.2)
+			{
+				const float CX = Canvas->ClipX * 0.5f;
+				const float CY = Canvas->ClipY * 0.5f;
+				const FLinearColor Color = Weapon->WasLastHitHead() ? FLinearColor::Red : FLinearColor::White;
+				DrawLine(CX - 14.f, CY - 14.f, CX - 6.f, CY - 6.f, Color, 2.f);
+				DrawLine(CX + 14.f, CY - 14.f, CX + 6.f, CY - 6.f, Color, 2.f);
+				DrawLine(CX - 14.f, CY + 14.f, CX - 6.f, CY + 6.f, Color, 2.f);
+				DrawLine(CX + 14.f, CY + 14.f, CX + 6.f, CY + 6.f, Color, 2.f);
+			}
 		}
 	}
 }

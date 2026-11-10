@@ -3,7 +3,9 @@
 #include "Abilities/BrutusAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Character/BrutusHitboxComponent.h"
 #include "Character/BrutusMovementComponent.h"
+#include "Combat/BrutusHitscanWeaponComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/BrutusGameMode.h"
@@ -43,6 +45,9 @@ ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 		BodyMesh->SetStaticMesh(Cylinder.Object);
 	}
 	FitBodyMeshToCapsule();
+
+	Hitbox = CreateDefaultSubobject<UBrutusHitboxComponent>(TEXT("Hitbox"));
+	Weapon = CreateDefaultSubobject<UBrutusHitscanWeaponComponent>(TEXT("Weapon"));
 
 	// The skeletal mesh is unused in the greybox.
 	GetMesh()->SetVisibility(false);
@@ -168,6 +173,8 @@ void ABrutusCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(PC->GetAction(EBrutusInput::Slide), ETriggerEvent::Started, this, &ABrutusCharacter::OnSlideStarted);
 	Input->BindAction(PC->GetAction(EBrutusInput::Slide), ETriggerEvent::Completed, this, &ABrutusCharacter::OnSlideCompleted);
 	Input->BindAction(PC->GetAction(EBrutusInput::Interact), ETriggerEvent::Started, this, &ABrutusCharacter::OnInteract);
+	Input->BindAction(PC->GetAction(EBrutusInput::Fire), ETriggerEvent::Started, this, &ABrutusCharacter::OnFireStarted);
+	Input->BindAction(PC->GetAction(EBrutusInput::Fire), ETriggerEvent::Completed, this, &ABrutusCharacter::OnFireCompleted);
 }
 
 void ABrutusCharacter::OnMove(const FInputActionValue& Value)
@@ -225,4 +232,14 @@ void ABrutusCharacter::OnInteract()
 	{
 		Move->bWantsToZipline = true; // one-shot: attach, or detach when already riding
 	}
+}
+
+void ABrutusCharacter::OnFireStarted()
+{
+	Weapon->StartFire();
+}
+
+void ABrutusCharacter::OnFireCompleted()
+{
+	Weapon->StopFire();
 }
