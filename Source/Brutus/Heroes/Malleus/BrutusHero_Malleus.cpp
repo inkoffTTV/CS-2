@@ -38,7 +38,7 @@ ABrutusHero_Malleus::ABrutusHero_Malleus(const FObjectInitializer& ObjectInitial
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 
-	auto MakeGear = [this](const TCHAR* Name, UStaticMesh* Mesh)
+	auto MakeGear = [this](const TCHAR* Name, UStaticMesh* MeshAsset)
 	{
 		UStaticMeshComponent* Gear = CreateDefaultSubobject<UStaticMeshComponent>(Name);
 		// Attached like the body cylinder, so network smoothing moves it too.
@@ -46,9 +46,9 @@ ABrutusHero_Malleus::ABrutusHero_Malleus(const FObjectInitializer& ObjectInitial
 		Gear->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Gear->SetGenerateOverlapEvents(false);
 		Gear->SetCanEverAffectNavigation(false);
-		if (Mesh)
+		if (MeshAsset)
 		{
-			Gear->SetStaticMesh(Mesh);
+			Gear->SetStaticMesh(MeshAsset);
 		}
 		return Gear;
 	};

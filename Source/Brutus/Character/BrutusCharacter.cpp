@@ -135,14 +135,21 @@ void ABrutusCharacter::ResetHeroState(ABrutusPlayerState& PS)
 {
 	UAbilitySystemComponent* ASC = PS.GetAbilitySystemComponent();
 
-	// Timed effects of the previous life or hero (cooldowns, stun, slows, buffs) must not carry over.
+	// Timed effects of the previous life (stun, slows, buffs) must not carry over.
+	// Cooldowns survive a plain respawn and are cleared only when the hero changes.
 	// Infinite effects (future items) stay with the player.
-	ASC->RemoveActiveGameplayEffectBySourceEffect(UBrutusCooldownEffect::StaticClass(), nullptr);
+	const bool bResetCooldowns = PS.bResetCooldownsOnNextSpawn;
+	PS.bResetCooldownsOnNextSpawn = false;
+	if (bResetCooldowns)
+	{
+		ASC->RemoveActiveGameplayEffectBySourceEffect(UBrutusCooldownEffect::StaticClass(), nullptr);
+	}
 	ASC->RemoveActiveGameplayEffectBySourceEffect(UBrutusStunEffect::StaticClass(), nullptr);
 	for (const FActiveGameplayEffectHandle& Handle : ASC->GetActiveEffects(FGameplayEffectQuery()))
 	{
 		const FActiveGameplayEffect* Effect = ASC->GetActiveGameplayEffect(Handle);
-		if (Effect && Effect->Spec.Def && Effect->Spec.Def->DurationPolicy == EGameplayEffectDurationType::HasDuration)
+		const UGameplayEffect* Def = Effect ? Effect->Spec.Def.Get() : nullptr;
+		if (Def && Def->DurationPolicy == EGameplayEffectDurationType::HasDuration && !Def->IsA(UBrutusCooldownEffect::StaticClass()))
 		{
 			ASC->RemoveActiveGameplayEffect(Handle);
 		}

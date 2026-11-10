@@ -30,6 +30,10 @@ public:
 	EBrutusHero GetSelectedHero() const { return SelectedHero; }
 	void SetSelectedHero(EBrutusHero InHero) { SelectedHero = InHero; }
 
+	// Server only: the next spawn is a different hero, so ability cooldowns start fresh.
+	// A plain respawn keeps cooldowns running (no "ult, die, ult again").
+	bool bResetCooldownsOnNextSpawn = false;
+
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UAbilitySystemComponent> AbilitySystem;

@@ -32,6 +32,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Brutus")
 	float RespawnDelay = 5.f;
 
+	// A living hero may switch only this close to one of its team's player starts; elsewhere the
+	// pick applies on the next respawn. Stops switching from being a free escape and full heal.
+	UPROPERTY(EditDefaultsOnly, Category = "Brutus")
+	float HeroSwitchRadius = 1500.f;
+
 private:
 	void RespawnHero(AController* Controller);
 	uint8 PickTeamForNewPlayer(const APlayerState* NewPlayerState) const;

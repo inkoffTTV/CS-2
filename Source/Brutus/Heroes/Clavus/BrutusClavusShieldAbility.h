@@ -24,5 +24,6 @@ public:
 	float MaxFloorDrop = 500.f;
 
 private:
-	void ServerDeploy(const FGameplayAbilityActorInfo* ActorInfo) const;
+	// Floor point and yaw for the wall, or false when there is no room (too close to a wall, or a hero in the way).
+	bool FindPlacement(const FGameplayAbilityActorInfo* ActorInfo, FVector& OutFloor, float& OutYaw) const;
 };
