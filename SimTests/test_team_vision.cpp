@@ -68,3 +68,14 @@ TEST_CASE("Own team is always visible, unknown ids never")
     CHECK(V.IsVisibleToTeam(2, 1));
     CHECK_FALSE(V.IsVisibleToTeam(99, 0));
 }
+
+TEST_CASE("Id missing from Update is dropped and gets no inherited grace on return")
+{
+    TeamVision V;
+    V.Update(0.0, {Observer(), Enemy(1500)}, Clear);
+    CHECK(V.IsVisibleToTeam(2, 0));
+    V.Update(0.05, {Observer()}, Clear); // enemy left (despawned)
+    CHECK_FALSE(V.IsVisibleToTeam(2, 0));
+    V.Update(0.1, {Observer(), Enemy(1500)}, Blocked); // reappears within the old grace window
+    CHECK_FALSE(V.IsVisibleToTeam(2, 0));
+}

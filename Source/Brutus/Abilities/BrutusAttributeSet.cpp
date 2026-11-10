@@ -8,6 +8,8 @@ UBrutusAttributeSet::UBrutusAttributeSet()
 	// Starting value for tuning.
 	InitMaxHealth(250.f);
 	InitHealth(250.f);
+	InitMoveSpeedMultiplier(1.f);
+	InitDamageTakenMultiplier(1.f);
 }
 
 void UBrutusAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -15,6 +17,8 @@ void UBrutusAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION_NOTIFY(UBrutusAttributeSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UBrutusAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UBrutusAttributeSet, MoveSpeedMultiplier, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UBrutusAttributeSet, DamageTakenMultiplier, COND_None, REPNOTIFY_Always);
 }
 
 void UBrutusAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -27,6 +31,10 @@ void UBrutusAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute
 	else if (Attribute == GetMaxHealthAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 1.f);
+	}
+	else if (Attribute == GetMoveSpeedMultiplierAttribute() || Attribute == GetDamageTakenMultiplierAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 0.f);
 	}
 }
 
@@ -53,4 +61,14 @@ void UBrutusAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)
 void UBrutusAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UBrutusAttributeSet, MaxHealth, OldValue);
+}
+
+void UBrutusAttributeSet::OnRep_MoveSpeedMultiplier(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBrutusAttributeSet, MoveSpeedMultiplier, OldValue);
+}
+
+void UBrutusAttributeSet::OnRep_DamageTakenMultiplier(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBrutusAttributeSet, DamageTakenMultiplier, OldValue);
 }

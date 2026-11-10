@@ -1,7 +1,6 @@
 #include "Core/BrutusGameMode.h"
 
 #include "Brutus.h"
-#include "Abilities/BrutusAttributeSet.h"
 #include "Abilities/BrutusDamageEffect.h"
 #include "AbilitySystemComponent.h"
 #include "TimerManager.h"
@@ -10,6 +9,7 @@
 #include "Core/BrutusHUD.h"
 #include "Core/BrutusPlayerController.h"
 #include "Core/BrutusPlayerState.h"
+#include "Core/BrutusTeams.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -28,7 +28,7 @@ FString ABrutusGameMode::InitNewPlayer(APlayerController* NewPlayerController, c
 	if (ABrutusPlayerState* PS = NewPlayerController ? NewPlayerController->GetPlayerState<ABrutusPlayerState>() : nullptr)
 	{
 		PS->SetTeamId(PickTeamForNewPlayer(PS));
-		UE_LOG(LogBrutus, Log, TEXT("New player joined team %d"), PS->GetTeamId());
+		UE_LOG(LogBrutus, Log, TEXT("New player joined the %s"), BrutusTeams::GetTeamName(PS->GetTeamId()));
 	}
 	return Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
 }
@@ -77,6 +77,15 @@ AActor* ABrutusGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
+UClass* ABrutusGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)
+{
+	if (const ABrutusPlayerState* PS = InController ? InController->GetPlayerState<ABrutusPlayerState>() : nullptr)
+	{
+		return BrutusHeroRegistry::GetHeroClass(PS->GetSelectedHero()).Get();
+	}
+	return Super::GetDefaultPawnClassForController_Implementation(InController);
+}
+
 void ABrutusGameMode::HandleHeroDeath(ABrutusCharacter* Victim, AController* Killer)
 {
 	if (!Victim)
@@ -94,24 +103,62 @@ void ABrutusGameMode::HandleHeroDeath(ABrutusCharacter* Victim, AController* Kil
 		return;
 	}
 	TWeakObjectPtr<AController> WeakController = VictimController;
+	PendingRespawns.Add(WeakController);
 	FTimerHandle Handle;
 	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, WeakController]()
 	{
-		if (AController* Controller = WeakController.Get())
+		PendingRespawns.Remove(WeakController);
+		AController* Controller = WeakController.Get();
+		if (Controller && !Controller->GetPawn())
 		{
 			RespawnHero(Controller);
 		}
 	}), RespawnDelay, false);
 }
 
+void ABrutusGameMode::ChangeHero(AController* Controller, EBrutusHero Hero)
+{
+	ABrutusPlayerState* PS = Controller ? Controller->GetPlayerState<ABrutusPlayerState>() : nullptr;
+	if (!PS || !BrutusHeroRegistry::IsValidHero(Hero))
+	{
+		return;
+	}
+	if (PS->GetSelectedHero() == Hero)
+	{
+		return; // already this hero (or already queued for the next respawn)
+	}
+	PS->SetSelectedHero(Hero);
+	PS->bResetCooldownsOnNextSpawn = true;
+	UE_LOG(LogBrutus, Log, TEXT("%s selected hero %s"), *GetNameSafe(Controller), *BrutusHeroRegistry::GetHeroName(Hero));
+
+	if (APawn* OldPawn = Controller->GetPawn())
+	{
+		// Away from base the pick waits for the next respawn.
+		const FName TeamTag(*FString::Printf(TEXT("Team%d"), PS->GetTeamId()));
+		bool bNearOwnSpawn = false;
+		for (TActorIterator<APlayerStart> It(GetWorld()); It && !bNearOwnSpawn; ++It)
+		{
+			bNearOwnSpawn = It->PlayerStartTag == TeamTag && FVector::Dist(It->GetActorLocation(), OldPawn->GetActorLocation()) <= HeroSwitchRadius;
+		}
+		if (!bNearOwnSpawn)
+		{
+			UE_LOG(LogBrutus, Log, TEXT("%s: hero switch applies on the next respawn"), *GetNameSafe(Controller));
+			return;
+		}
+		// Removed without going through HandleHeroDeath: a hero switch is not a death.
+		OldPawn->DetachFromControllerPendingDestroy();
+		OldPawn->Destroy();
+	}
+	else if (PendingRespawns.Contains(TWeakObjectPtr<AController>(Controller)))
+	{
+		return; // dead: the pending respawn will use the new hero
+	}
+	RespawnHero(Controller);
+}
+
 void ABrutusGameMode::RespawnHero(AController* Controller)
 {
-	if (ABrutusPlayerState* PS = Controller->GetPlayerState<ABrutusPlayerState>())
-	{
-		UBrutusAttributeSet* Attributes = PS->GetAttributes();
-		PS->GetAbilitySystemComponent()->SetNumericAttributeBase(UBrutusAttributeSet::GetHealthAttribute(), Attributes->GetMaxHealth());
-		Attributes->ResetOutOfHealth();
-	}
+	// Health, attributes, effects and abilities are reset by the new hero in ABrutusCharacter::PossessedBy.
 	RestartPlayer(Controller);
 }
 

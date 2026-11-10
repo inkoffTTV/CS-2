@@ -50,6 +50,8 @@ public:
 	bool IsOnZipline() const;
 	bool IsDashing() const { return DashTimeRemaining > 0.f; }
 	float GetDashTimeRemaining() const { return DashTimeRemaining; }
+	// State.Stunned on the owner's ability system: no input acceleration, no jump/dash/slide/zipline attach.
+	bool IsStunned() const;
 
 	// UCharacterMovementComponent
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
@@ -58,6 +60,7 @@ public:
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 	virtual void PhysCustom(float DeltaTime, int32 Iterations) override;
 	virtual float GetMaxSpeed() const override;
+	virtual FVector ConstrainInputAcceleration(const FVector& InputAcceleration) const override;
 	virtual float GetMaxBrakingDeceleration() const override;
 	virtual bool CanCrouchInCurrentState() const override;
 	virtual bool IsMovingOnGround() const override;

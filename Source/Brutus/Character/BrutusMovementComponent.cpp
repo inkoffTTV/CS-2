@@ -1,5 +1,9 @@
 #include "Character/BrutusMovementComponent.h"
 
+#include "Abilities/BrutusAttributeSet.h"
+#include "Abilities/BrutusStunEffect.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Core/BrutusSimConvert.h"
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
@@ -57,6 +61,11 @@ bool UBrutusMovementComponent::IsOnZipline() const
 	return MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(EBrutusMoveMode::Zipline);
 }
 
+bool UBrutusMovementComponent::IsStunned() const
+{
+	return UBrutusStunEffect::IsActorStunned(CharacterOwner);
+}
+
 FNetworkPredictionData_Client* UBrutusMovementComponent::GetPredictionData_Client() const
 {
 	if (!ClientPredictionData)
@@ -97,7 +106,7 @@ void UBrutusMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSec
 
 void UBrutusMovementComponent::TryDash()
 {
-	if (IsOnZipline() || !bsim::TryConsume(Stamina, StaminaCfg))
+	if (IsOnZipline() || IsStunned() || !bsim::TryConsume(Stamina, StaminaCfg))
 	{
 		return;
 	}
@@ -113,7 +122,7 @@ void UBrutusMovementComponent::TryDash()
 
 void UBrutusMovementComponent::TryStartSlide()
 {
-	if (!bWantsToSlide || IsSliding() || !IsMovingOnGround())
+	if (!bWantsToSlide || IsSliding() || !IsMovingOnGround() || IsStunned())
 	{
 		return;
 	}
@@ -129,7 +138,15 @@ void UBrutusMovementComponent::OnMovementUpdated(float DeltaSeconds, const FVect
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
 	bsim::Regen(Stamina, StaminaCfg, DeltaSeconds);
+	const bool bWasDashing = DashTimeRemaining > 0.f;
 	DashTimeRemaining = FMath::Max(0.f, DashTimeRemaining - DeltaSeconds);
+	if (bWasDashing && DashTimeRemaining <= 0.f && IsFalling())
+	{
+		// Air dash just ended: cap horizontal speed once so it cannot be carried as a launch. Z is kept.
+		const FVector Horizontal = FVector(Velocity.X, Velocity.Y, 0.f).GetClampedToMaxSize(MaxWalkSpeed * 1.25f);
+		Velocity.X = Horizontal.X;
+		Velocity.Y = Horizontal.Y;
+	}
 }
 
 void UBrutusMovementComponent::PhysCustom(float DeltaTime, int32 Iterations)
@@ -164,7 +181,7 @@ void UBrutusMovementComponent::ToggleZipline()
 		SetMovementMode(MOVE_Falling);
 		return;
 	}
-	UBrutusZiplineComponent* Zipline = FindZiplineNear(ZiplineCfg.AttachRadius);
+	UBrutusZiplineComponent* Zipline = IsStunned() ? nullptr : FindZiplineNear(ZiplineCfg.AttachRadius);
 	if (!Zipline)
 	{
 		return;
@@ -273,15 +290,33 @@ void UBrutusMovementComponent::PhysSlide(float DeltaTime, int32 Iterations)
 
 float UBrutusMovementComponent::GetMaxSpeed() const
 {
+	float Multiplier = 1.f;
+	if (const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(CharacterOwner))
+	{
+		if (const UBrutusAttributeSet* Attributes = ASC->GetSet<UBrutusAttributeSet>())
+		{
+			Multiplier = FMath::Max(0.f, Attributes->GetMoveSpeedMultiplier());
+		}
+	}
 	if (IsDashing())
 	{
-		return MoveCfg.DashSpeed;
+		return MoveCfg.DashSpeed * Multiplier;
 	}
 	if (IsSliding())
 	{
-		return MoveCfg.SlideMaxSpeed;
+		return MoveCfg.SlideMaxSpeed * Multiplier;
 	}
-	return Super::GetMaxSpeed();
+	return Super::GetMaxSpeed() * Multiplier;
+}
+
+FVector UBrutusMovementComponent::ConstrainInputAcceleration(const FVector& InputAcceleration) const
+{
+	// Used for both the locally predicted move and the server replay of the client's move.
+	if (IsStunned())
+	{
+		return FVector::ZeroVector;
+	}
+	return Super::ConstrainInputAcceleration(InputAcceleration);
 }
 
 float UBrutusMovementComponent::GetMaxBrakingDeceleration() const
@@ -316,7 +351,7 @@ void UBrutusMovementComponent::CalcVelocity(float DeltaTime, float Friction, boo
 
 bool UBrutusMovementComponent::CanAttemptJump() const
 {
-	return IsJumpAllowed() && (IsMovingOnGround() || IsFalling() || IsSliding() || IsOnZipline());
+	return IsJumpAllowed() && !IsStunned() && (IsMovingOnGround() || IsFalling() || IsSliding() || IsOnZipline());
 }
 
 #if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 4)
@@ -326,7 +361,8 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 #endif
 {
 	// Air jumps cost a stamina charge; the jump count limit comes from ACharacter::JumpMaxCount.
-	if (IsFalling() && !bsim::TryConsume(Stamina, StaminaCfg))
+	const bool bAirJump = IsFalling();
+	if (bAirJump && Stamina.Charges < 1.f)
 	{
 		return false;
 	}
@@ -335,6 +371,11 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 #else
 	const bool bJumped = Super::DoJump(bReplayingMoves);
 #endif
+	if (bAirJump && bJumped)
+	{
+		// Only pay once the base class actually performed the jump (it also enforces JumpMaxCount).
+		bsim::TryConsume(Stamina, StaminaCfg);
+	}
 	if (bJumped && IsFalling())
 	{
 		// An air jump resets downward speed so it always gains height.
@@ -345,13 +386,27 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 
 void UBrutusMovementComponent::ClientHandleMoveResponse(const FCharacterMoveResponseDataContainer& MoveResponse)
 {
-	if (MoveResponse.IsCorrection())
+	const bool bCorrection = MoveResponse.IsCorrection();
+	const bsim::StaminaState PrevStamina = Stamina;
+	const float PrevDashTimeRemaining = DashTimeRemaining;
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	const bool bHadPendingUpdate = ClientData && ClientData->bUpdatePosition;
+
+	if (bCorrection)
 	{
 		const FBrutusMoveResponseDataContainer& Data = static_cast<const FBrutusMoveResponseDataContainer&>(MoveResponse);
 		Stamina.Charges = Data.StaminaCharges;
 		DashTimeRemaining = Data.DashTimeRemaining;
 	}
 	Super::ClientHandleMoveResponse(MoveResponse);
+
+	// ClientAdjustPosition sets bUpdatePosition only when it applies the correction. If the base class
+	// ignored it (stale or already-acknowledged move), the server values must not overwrite ours.
+	if (bCorrection && !bHadPendingUpdate && !(ClientData && ClientData->bUpdatePosition))
+	{
+		Stamina = PrevStamina;
+		DashTimeRemaining = PrevDashTimeRemaining;
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -30,4 +30,5 @@ void ABrutusPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ABrutusPlayerState, TeamId);
+	DOREPLIFETIME(ABrutusPlayerState, SelectedHero);
 }

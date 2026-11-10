@@ -95,6 +95,7 @@ TOptional<FBrutusRewindHit> UBrutusLagCompensationSubsystem::RewindTrace(const F
 	const bsim::Ray Ray{ToSim(Start), ToSim(Dir.GetSafeNormal())};
 	const bool bDebug = CVarBrutusDebugLagComp.GetValueOnGameThread() != 0;
 
+	const ABrutusCharacter* ShooterHero = Cast<ABrutusCharacter>(Shooter);
 	TOptional<FBrutusRewindHit> Best;
 	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, TUniquePtr<bsim::HitboxHistory>>& Pair : Histories)
 	{
@@ -102,6 +103,10 @@ TOptional<FBrutusRewindHit> UBrutusLagCompensationSubsystem::RewindTrace(const F
 		if (!Hero || Hero == Shooter)
 		{
 			continue;
+		}
+		if (ShooterHero && Hero->GetTeamId() == ShooterHero->GetTeamId())
+		{
+			continue; // no friendly fire
 		}
 		const std::optional<std::vector<bsim::Capsule>> Shapes = Pair.Value->SampleAt(ShotServerTime);
 		if (!Shapes)
@@ -139,4 +144,16 @@ TOptional<FBrutusRewindHit> UBrutusLagCompensationSubsystem::RewindTrace(const F
 		}
 	}
 	return Best;
+}
+
+std::optional<std::vector<bsim::Capsule>> UBrutusLagCompensationSubsystem::SampleHitboxes(const ABrutusCharacter* Hero, double ServerTime) const
+{
+	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, TUniquePtr<bsim::HitboxHistory>>& Pair : Histories)
+	{
+		if (Hero && Pair.Key.Get() == Hero)
+		{
+			return Pair.Value->SampleAt(ServerTime);
+		}
+	}
+	return std::nullopt;
 }
