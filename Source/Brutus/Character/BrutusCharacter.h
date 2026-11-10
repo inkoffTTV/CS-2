@@ -10,6 +10,7 @@ class UBrutusMovementComponent;
 class UCameraComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
 class UBrutusHitboxComponent;
 class UBrutusHitscanWeaponComponent;
 struct FInputActionValue;
@@ -74,10 +75,26 @@ public:
 protected:
 	virtual bool CanJumpInternal_Implementation() const override;
 
-	// Posed static placeholder model (Art/Export/SM_Hero_<Name>_Posed.fbx imported into the project).
-	// When the asset exists it replaces every component tagged GreyboxTag; otherwise the greybox stays.
+	// Hero art, loaded quietly at BeginPlay in this order of preference (see docs/guides/hero-art-setup.md):
+	//  1. animated: skeletal mesh + animation blueprint class (+ weapon static mesh on the weapon_r bone);
+	//  2. posed static placeholder (Art/Export/SM_Hero_<Name>_Posed.fbx);
+	//  3. greybox primitives (every component tagged GreyboxTag).
+	// SetHeroArtPaths fills all paths from the names, e.g. ("Clavus", "Nailgun") -> /Game/Characters/Clavus/...,
+	// /Game/Weapons/Clavus/SM_Wpn_Clavus_Nailgun.
+	void SetHeroArtPaths(const TCHAR* HeroName, const TCHAR* WeaponName);
+
 	UPROPERTY(EditDefaultsOnly, Category = "Hero")
 	FSoftObjectPath PlaceholderMeshPath;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Hero")
+	FSoftObjectPath SkeletalMeshPath;
+
+	// Class path of the animation blueprint, e.g. /Game/Characters/Clavus/ABP_Clavus.ABP_Clavus_C
+	UPROPERTY(EditDefaultsOnly, Category = "Hero")
+	FSoftClassPath AnimClassPath;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Hero")
+	FSoftObjectPath WeaponMeshPath;
 
 	static const FName GreyboxTag;
 
@@ -116,7 +133,18 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> PlaceholderMesh;
 
-	void ApplyPlaceholderMesh();
+	// Animated hero body. A child of the (invisible) ACharacter mesh so network smoothing still applies;
+	// rotated -90 yaw because the exported heroes face +Y like the UE5 Mannequin.
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USkeletalMeshComponent> HeroBody;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UStaticMeshComponent> HeroWeapon;
+
+	void ApplyHeroArt();
+	bool TryApplyAnimatedArt();
+	bool TryApplyPlaceholderArt();
+	void HideGreybox();
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBrutusHitboxComponent> Hitbox;

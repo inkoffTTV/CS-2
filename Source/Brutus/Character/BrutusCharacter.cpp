@@ -10,7 +10,10 @@
 #include "Character/BrutusMovementComponent.h"
 #include "Combat/BrutusHitscanWeaponComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Core/BrutusGameMode.h"
 #include "Core/BrutusPlayerController.h"
 #include "Core/BrutusPlayerState.h"
@@ -50,6 +53,22 @@ ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 	PlaceholderMesh->SetGenerateOverlapEvents(false);
 	PlaceholderMesh->SetCanEverAffectNavigation(false);
 	PlaceholderMesh->SetVisibility(false);
+
+	HeroBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HeroBody"));
+	HeroBody->SetupAttachment(GetMesh());
+	HeroBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeroBody->SetGenerateOverlapEvents(false);
+	HeroBody->SetCanEverAffectNavigation(false);
+	HeroBody->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	HeroBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	HeroBody->SetVisibility(false);
+
+	HeroWeapon = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeroWeapon"));
+	HeroWeapon->SetupAttachment(HeroBody, TEXT("weapon_r"));
+	HeroWeapon->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeroWeapon->SetGenerateOverlapEvents(false);
+	HeroWeapon->SetCanEverAffectNavigation(false);
+	HeroWeapon->SetVisibility(false);
 	// Attached to the skeletal mesh so CMC network smoothing (which offsets it) also moves the body on simulated proxies.
 	BodyMesh->SetupAttachment(GetMesh());
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -215,24 +234,75 @@ const FName ABrutusCharacter::GreyboxTag(TEXT("Greybox"));
 void ABrutusCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	ApplyPlaceholderMesh();
+	ApplyHeroArt();
 }
 
-void ABrutusCharacter::ApplyPlaceholderMesh()
+void ABrutusCharacter::SetHeroArtPaths(const TCHAR* HeroName, const TCHAR* WeaponName)
+{
+	const FString Dir = FString::Printf(TEXT("/Game/Characters/%s/"), HeroName);
+	PlaceholderMeshPath = FSoftObjectPath(FString::Printf(TEXT("%sSM_Hero_%s_Posed.SM_Hero_%s_Posed"), *Dir, HeroName, HeroName));
+	SkeletalMeshPath = FSoftObjectPath(FString::Printf(TEXT("%sSK_Hero_%s.SK_Hero_%s"), *Dir, HeroName, HeroName));
+	AnimClassPath = FSoftClassPath(FString::Printf(TEXT("%sABP_%s.ABP_%s_C"), *Dir, HeroName, HeroName));
+	const FString Weapon = FString::Printf(TEXT("SM_Wpn_%s_%s"), HeroName, WeaponName);
+	WeaponMeshPath = FSoftObjectPath(FString::Printf(TEXT("/Game/Weapons/%s/%s.%s"), HeroName, *Weapon, *Weapon));
+}
+
+void ABrutusCharacter::ApplyHeroArt()
+{
+	// Quiet loads throughout: until the author imports the art, missing assets are expected, not errors.
+	if (TryApplyAnimatedArt() || TryApplyPlaceholderArt())
+	{
+		HideGreybox();
+	}
+}
+
+bool ABrutusCharacter::TryApplyAnimatedArt()
+{
+	if (SkeletalMeshPath.IsNull() || AnimClassPath.IsNull())
+	{
+		return false;
+	}
+	USkeletalMesh* Body = LoadObject<USkeletalMesh>(nullptr, *SkeletalMeshPath.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UClass* AnimClass = LoadClass<UAnimInstance>(nullptr, *AnimClassPath.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!Body || !AnimClass)
+	{
+		return false;
+	}
+	HeroBody->SetSkeletalMeshAsset(Body);
+	HeroBody->SetAnimInstanceClass(AnimClass);
+	HeroBody->SetVisibility(true);
+
+	if (!WeaponMeshPath.IsNull())
+	{
+		if (UStaticMesh* Gun = LoadObject<UStaticMesh>(nullptr, *WeaponMeshPath.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			HeroWeapon->SetStaticMesh(Gun);
+			// Re-attach now that the skeleton (and its weapon_r bone) exists.
+			HeroWeapon->AttachToComponent(HeroBody, FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("weapon_r"));
+			HeroWeapon->SetVisibility(true);
+		}
+	}
+	return true;
+}
+
+bool ABrutusCharacter::TryApplyPlaceholderArt()
 {
 	if (PlaceholderMeshPath.IsNull())
 	{
-		return;
+		return false;
 	}
-	// Quiet load: until the author imports the FBX, a missing asset is expected, not an error.
 	UStaticMesh* Model = LoadObject<UStaticMesh>(nullptr, *PlaceholderMeshPath.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (!Model)
 	{
-		return;
+		return false;
 	}
 	PlaceholderMesh->SetStaticMesh(Model);
 	PlaceholderMesh->SetVisibility(true);
+	return true;
+}
 
+void ABrutusCharacter::HideGreybox()
+{
 	TInlineComponentArray<UStaticMeshComponent*> Parts(this);
 	for (UStaticMeshComponent* Part : Parts)
 	{
@@ -254,7 +324,9 @@ void ABrutusCharacter::FitBodyMeshToCapsule()
 	// cancel that shift so the cylinder stays centred on the capsule. The mesh has no rotation or scale here.
 	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z));
 	// The placeholder model's pivot is at its feet: keep it on the capsule bottom (standing pose even when crouched).
-	PlaceholderMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z - HalfHeight));
+	const FVector Feet(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z - HalfHeight);
+	PlaceholderMesh->SetRelativeLocation(Feet);
+	HeroBody->SetRelativeLocation(Feet);
 }
 
 void ABrutusCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)

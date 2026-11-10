@@ -15,7 +15,7 @@ ABrutusHero_Clavus::ABrutusHero_Clavus(const FObjectInitializer& ObjectInitializ
 {
 	// Capsule stays at the base 42 / 96.
 	HeroMaxHealth = 275.f;
-	PlaceholderMeshPath = FSoftObjectPath(TEXT("/Game/Characters/Clavus/SM_Hero_Clavus_Posed.SM_Hero_Clavus_Posed"));
+	SetHeroArtPaths(TEXT("Clavus"), TEXT("Nailgun"));
 
 	ShoulderPad = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShoulderPad"));
 	// Same parent as the body cylinder, so network smoothing moves both together.

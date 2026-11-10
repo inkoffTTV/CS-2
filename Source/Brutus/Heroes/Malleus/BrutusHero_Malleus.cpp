@@ -21,7 +21,7 @@ ABrutusHero_Malleus::ABrutusHero_Malleus(const FObjectInitializer& ObjectInitial
 	// Starting values for tuning.
 	GetCapsuleComponent()->InitCapsuleSize(60.f, 105.f);
 	HeroMaxHealth = 400.f;
-	PlaceholderMeshPath = FSoftObjectPath(TEXT("/Game/Characters/Malleus/SM_Hero_Malleus_Posed.SM_Hero_Malleus_Posed"));
+	SetHeroArtPaths(TEXT("Malleus"), TEXT("Hammer"));
 
 	// Skeletal mesh origin at the feet (the usual UE setup), so scaling the visuals alone (Rage without
 	// room for a bigger capsule) grows them upwards from the floor. FitBodyMeshToCapsule cancels this offset
