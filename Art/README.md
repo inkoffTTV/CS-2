@@ -1,5 +1,8 @@
 # Art — temporary hero models (greybox+)
 
+> **Текущие файлы в `Export/` собраны с `--ue-face-y`** — герои смотрят по UE +Y, как UE5 Manny, чтобы анимации Manny перенацеливались без поворота. При подключении в C++ компоненту меша нужен поворот yaw −90° (стандарт для персонажей UE). Превью в `Previews/` сняты с варианта по умолчанию — выглядят так же.
+
+
 These are stylized low-poly **placeholders** for Clavus and Malleus that replace the grey capsules in early playtests. They are not final art.
 One script builds them from scratch with Blender's Python API.
 
