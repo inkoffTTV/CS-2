@@ -145,3 +145,15 @@ TOptional<FBrutusRewindHit> UBrutusLagCompensationSubsystem::RewindTrace(const F
 	}
 	return Best;
 }
+
+std::optional<std::vector<bsim::Capsule>> UBrutusLagCompensationSubsystem::SampleHitboxes(const ABrutusCharacter* Hero, double ServerTime) const
+{
+	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, TUniquePtr<bsim::HitboxHistory>>& Pair : Histories)
+	{
+		if (Hero && Pair.Key.Get() == Hero)
+		{
+			return Pair.Value->SampleAt(ServerTime);
+		}
+	}
+	return std::nullopt;
+}

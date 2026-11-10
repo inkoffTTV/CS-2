@@ -34,6 +34,9 @@ public:
 
 	TOptional<FBrutusRewindHit> RewindTrace(const FVector& Start, const FVector& Dir, float MaxRange, double ShotServerTime, const AActor* Shooter) const;
 
+	// Hero's hitboxes as recorded at ServerTime (interpolated). nullopt when Hero has no history that old.
+	std::optional<std::vector<bsim::Capsule>> SampleHitboxes(const ABrutusCharacter* Hero, double ServerTime) const;
+
 private:
 	void OnHeroTeleported(ABrutusCharacter* Hero);
 
