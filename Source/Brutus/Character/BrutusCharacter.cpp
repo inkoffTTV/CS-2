@@ -1,10 +1,14 @@
 #include "Character/BrutusCharacter.h"
 
+#include "Abilities/BrutusAttributeSet.h"
+#include "AbilitySystemComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BrutusMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/BrutusGameMode.h"
 #include "Core/BrutusPlayerController.h"
+#include "Core/BrutusPlayerState.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
@@ -47,6 +51,74 @@ ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 UBrutusMovementComponent* ABrutusCharacter::GetBrutusMovement() const
 {
 	return Cast<UBrutusMovementComponent>(GetCharacterMovement());
+}
+
+ABrutusPlayerState* ABrutusCharacter::GetBrutusPlayerState() const
+{
+	return GetPlayerState<ABrutusPlayerState>();
+}
+
+UAbilitySystemComponent* ABrutusCharacter::GetAbilitySystemComponent() const
+{
+	const ABrutusPlayerState* PS = GetBrutusPlayerState();
+	return PS ? PS->GetAbilitySystemComponent() : nullptr;
+}
+
+uint8 ABrutusCharacter::GetTeamId() const
+{
+	const ABrutusPlayerState* PS = GetBrutusPlayerState();
+	return PS ? PS->GetTeamId() : 255;
+}
+
+void ABrutusCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	InitAbilitySystem();
+	if (ABrutusPlayerState* PS = GetBrutusPlayerState())
+	{
+		PS->GetAttributes()->OnOutOfHealth.AddUObject(this, &ABrutusCharacter::HandleOutOfHealth);
+	}
+	NotifyTeleported();
+}
+
+void ABrutusCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	InitAbilitySystem();
+}
+
+void ABrutusCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (ABrutusPlayerState* PS = GetBrutusPlayerState())
+	{
+		PS->GetAttributes()->OnOutOfHealth.RemoveAll(this);
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
+void ABrutusCharacter::InitAbilitySystem()
+{
+	if (ABrutusPlayerState* PS = GetBrutusPlayerState())
+	{
+		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
+	}
+}
+
+void ABrutusCharacter::HandleOutOfHealth(AActor* DamageInstigator)
+{
+	AController* Killer = nullptr;
+	if (const APlayerState* KillerPS = Cast<APlayerState>(DamageInstigator))
+	{
+		Killer = KillerPS->GetOwningController();
+	}
+	else if (const APawn* KillerPawn = Cast<APawn>(DamageInstigator))
+	{
+		Killer = KillerPawn->GetController();
+	}
+	if (ABrutusGameMode* GM = GetWorld()->GetAuthGameMode<ABrutusGameMode>())
+	{
+		GM->HandleHeroDeath(this, Killer);
+	}
 }
 
 void ABrutusCharacter::FitBodyMeshToCapsule()

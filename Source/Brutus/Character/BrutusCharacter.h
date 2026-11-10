@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
 #include "BrutusCharacter.generated.h"
 
@@ -9,10 +10,14 @@ class UCameraComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 struct FInputActionValue;
+class ABrutusPlayerState;
+class ABrutusCharacter;
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnHeroTeleported, ABrutusCharacter*);
 
 // Greybox hero: capsule + cylinder, over-the-shoulder camera, Brutus movement.
 UCLASS()
-class BRUTUS_API ABrutusCharacter : public ACharacter
+class BRUTUS_API ABrutusCharacter : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
@@ -20,6 +25,20 @@ public:
 	explicit ABrutusCharacter(const FObjectInitializer& ObjectInitializer);
 
 	UBrutusMovementComponent* GetBrutusMovement() const;
+	ABrutusPlayerState* GetBrutusPlayerState() const;
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+	// 255 when the hero has no player state yet.
+	uint8 GetTeamId() const;
+
+	// Fired on the server when the hero is placed somewhere without travelling (spawn, teleport).
+	// Lag compensation uses it to avoid interpolating across the jump.
+	FOnHeroTeleported OnTeleported;
+	void NotifyTeleported() { OnTeleported.Broadcast(this); }
+
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_PlayerState() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
@@ -39,6 +58,8 @@ private:
 	void OnInteract();
 
 	void FitBodyMeshToCapsule();
+	void InitAbilitySystem();
+	void HandleOutOfHealth(AActor* DamageInstigator);
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USpringArmComponent> CameraBoom;

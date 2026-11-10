@@ -1,6 +1,8 @@
 #include "Core/BrutusHUD.h"
 
+#include "Abilities/BrutusAttributeSet.h"
 #include "Character/BrutusCharacter.h"
+#include "Core/BrutusPlayerState.h"
 #include "Character/BrutusMovementComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -15,6 +17,12 @@ void ABrutusHUD::DrawHUD()
 	DrawCrosshair();
 
 	int32 Row = 0;
+	if (const ABrutusPlayerState* PS = GetOwningPlayerController() ? GetOwningPlayerController()->GetPlayerState<ABrutusPlayerState>() : nullptr)
+	{
+		const UBrutusAttributeSet* Attr = PS->GetAttributes();
+		DrawTextRow(FString::Printf(TEXT("Health %.0f / %.0f"), Attr->GetHealth(), Attr->GetMaxHealth()), Row++);
+		DrawTextRow(FString::Printf(TEXT("Team %d"), PS->GetTeamId()), Row++);
+	}
 	if (const ABrutusCharacter* Hero = Cast<ABrutusCharacter>(GetOwningPawn()))
 	{
 		if (const UBrutusMovementComponent* Move = Hero->GetBrutusMovement())

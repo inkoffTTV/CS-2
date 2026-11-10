@@ -1,6 +1,10 @@
 #include "Core/BrutusGameMode.h"
 
 #include "Brutus.h"
+#include "Abilities/BrutusAttributeSet.h"
+#include "Abilities/BrutusDamageEffect.h"
+#include "AbilitySystemComponent.h"
+#include "TimerManager.h"
 #include "Character/BrutusCharacter.h"
 #include "Core/BrutusGameState.h"
 #include "Core/BrutusHUD.h"
@@ -66,3 +70,62 @@ AActor* ABrutusGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	}
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
+
+void ABrutusGameMode::HandleHeroDeath(ABrutusCharacter* Victim, AController* Killer)
+{
+	if (!Victim)
+	{
+		return;
+	}
+	AController* VictimController = Victim->GetController();
+	UE_LOG(LogBrutus, Log, TEXT("%s killed by %s"), *GetNameSafe(VictimController), *GetNameSafe(Killer));
+
+	Victim->DetachFromControllerPendingDestroy();
+	Victim->Destroy();
+
+	if (!VictimController)
+	{
+		return;
+	}
+	TWeakObjectPtr<AController> WeakController = VictimController;
+	FTimerHandle Handle;
+	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, WeakController]()
+	{
+		if (AController* Controller = WeakController.Get())
+		{
+			RespawnHero(Controller);
+		}
+	}), RespawnDelay, false);
+}
+
+void ABrutusGameMode::RespawnHero(AController* Controller)
+{
+	if (ABrutusPlayerState* PS = Controller->GetPlayerState<ABrutusPlayerState>())
+	{
+		UBrutusAttributeSet* Attributes = PS->GetAttributes();
+		PS->GetAbilitySystemComponent()->SetNumericAttributeBase(UBrutusAttributeSet::GetHealthAttribute(), Attributes->GetMaxHealth());
+		Attributes->ResetOutOfHealth();
+	}
+	RestartPlayer(Controller);
+}
+
+// Debug: brutus.DamageSelf <amount> — damages the local hero on a listen server host.
+static FAutoConsoleCommandWithWorldAndArgs GBrutusDamageSelf(
+	TEXT("brutus.DamageSelf"),
+	TEXT("brutus.DamageSelf <amount>: damage your own hero (server/host only)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (!World || World->GetNetMode() == NM_Client)
+		{
+			UE_LOG(LogBrutus, Warning, TEXT("brutus.DamageSelf runs on the server/host only."));
+			return;
+		}
+		const float Amount = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 50.f;
+		APlayerController* PC = World->GetFirstPlayerController();
+		ABrutusPlayerState* PS = PC ? PC->GetPlayerState<ABrutusPlayerState>() : nullptr;
+		if (PS)
+		{
+			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+			UBrutusDamageEffect::Apply(ASC, ASC, Amount);
+		}
+	}));
