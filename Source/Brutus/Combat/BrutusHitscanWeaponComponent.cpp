@@ -7,6 +7,7 @@
 #include "Combat/BrutusLagCompensationSubsystem.h"
 #include "Core/BrutusSimConvert.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/DamageEvents.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "Raycast.h"
@@ -150,11 +151,28 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 
 	// Pellet damage is summed per target so each target takes one damage application per shot.
 	TMap<TWeakObjectPtr<ABrutusCharacter>, float> DamageByTarget;
+	// Pellets stopped by the static world before any hero go to the actor that stopped them
+	// (deployable shields take damage through AActor::TakeDamage; plain walls ignore it).
+	TMap<TWeakObjectPtr<AActor>, float> DamageByBlocker;
 	bool bAnyHead = false;
 	for (const FVector& PelletDir : BuildPelletDirections(Dir, Seed))
 	{
 		const TOptional<FBrutusRewindHit> Hit = LagComp->RewindTrace(Start, PelletDir, MaxRange, RewindTime, Shooter);
-		if (!Hit || !Hit->Target.IsValid() || Hit->Target->GetTeamId() == Shooter->GetTeamId())
+		if (!Hit)
+		{
+			FHitResult BlockHit;
+			FCollisionQueryParams BlockParams(SCENE_QUERY_STAT(BrutusShotBlocker), false, Shooter);
+			if (GetWorld()->LineTraceSingleByObjectType(BlockHit, Start, Start + PelletDir * MaxRange, FCollisionObjectQueryParams(ECC_WorldStatic), BlockParams))
+			{
+				AActor* Blocker = BlockHit.GetActor();
+				if (Blocker && Blocker->CanBeDamaged() && !Blocker->IsA<APawn>())
+				{
+					DamageByBlocker.FindOrAdd(Blocker) += Damage;
+				}
+			}
+			continue;
+		}
+		if (!Hit->Target.IsValid() || Hit->Target->GetTeamId() == Shooter->GetTeamId())
 		{
 			continue;
 		}
@@ -168,6 +186,13 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 		if (ABrutusCharacter* Target = Pair.Key.Get())
 		{
 			UBrutusDamageEffect::Apply(Shooter->GetAbilitySystemComponent(), Target->GetAbilitySystemComponent(), Pair.Value);
+		}
+	}
+	for (const TPair<TWeakObjectPtr<AActor>, float>& Pair : DamageByBlocker)
+	{
+		if (AActor* Blocker = Pair.Key.Get())
+		{
+			Blocker->TakeDamage(Pair.Value, FDamageEvent(), Shooter->GetController(), Shooter);
 		}
 	}
 	if (DamageByTarget.Num() > 0)
