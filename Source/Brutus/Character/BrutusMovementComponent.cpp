@@ -3,6 +3,8 @@
 #include "Core/BrutusSimConvert.h"
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
+#include "Movement/BrutusZiplineComponent.h"
+#include "Movement/BrutusZiplineRegistry.h"
 
 // ---------------------------------------------------------------------------
 // Correction payload
@@ -78,6 +80,11 @@ void UBrutusMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSec
 	// Crouch capsule follows the slide key (crouch-walk when too slow to slide).
 	bWantsToCrouch = bWantsToSlide;
 
+	if (bWantsToZipline)
+	{
+		bWantsToZipline = false;
+		ToggleZipline();
+	}
 	if (bWantsToDash)
 	{
 		bWantsToDash = false;
@@ -131,6 +138,89 @@ void UBrutusMovementComponent::PhysCustom(float DeltaTime, int32 Iterations)
 	if (CustomMovementMode == static_cast<uint8>(EBrutusMoveMode::Slide))
 	{
 		PhysSlide(DeltaTime, Iterations);
+	}
+	else if (CustomMovementMode == static_cast<uint8>(EBrutusMoveMode::Zipline))
+	{
+		PhysZipline(DeltaTime, Iterations);
+	}
+}
+
+FVector UBrutusMovementComponent::CableProbe() const
+{
+	// The character hangs HangOffsetZ below the cable.
+	return UpdatedComponent->GetComponentLocation() - FVector(0.f, 0.f, ZiplineCfg.HangOffsetZ);
+}
+
+UBrutusZiplineComponent* UBrutusMovementComponent::FindZiplineNear(float MaxDist) const
+{
+	const UBrutusZiplineRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<UBrutusZiplineRegistry>() : nullptr;
+	return Registry ? Registry->FindNearest(CableProbe(), MaxDist) : nullptr;
+}
+
+void UBrutusMovementComponent::ToggleZipline()
+{
+	if (IsOnZipline())
+	{
+		SetMovementMode(MOVE_Falling);
+		return;
+	}
+	UBrutusZiplineComponent* Zipline = FindZiplineNear(ZiplineCfg.AttachRadius);
+	if (!Zipline)
+	{
+		return;
+	}
+	CurrentZipline = Zipline;
+	ZiplineDir = static_cast<int8>(bsim::ChooseDirection(Zipline->GetWorldSegment(), ToSim(UpdatedComponent->GetForwardVector())));
+	if (IsCrouching())
+	{
+		UnCrouch(false);
+	}
+	SetMovementMode(MOVE_Custom, static_cast<uint8>(EBrutusMoveMode::Zipline));
+}
+
+void UBrutusMovementComponent::PhysZipline(float DeltaTime, int32 Iterations)
+{
+	if (DeltaTime < MIN_TICK_TIME)
+	{
+		return;
+	}
+	// After a server correction the client may be in zipline mode without a cable reference.
+	if (!CurrentZipline.IsValid())
+	{
+		CurrentZipline = FindZiplineNear(ZiplineCfg.AttachRadius * 2.f);
+	}
+	if (!CurrentZipline.IsValid())
+	{
+		SetMovementMode(MOVE_Falling);
+		StartNewPhysics(DeltaTime, Iterations);
+		return;
+	}
+
+	// T is derived from the current position each tick, so corrections cannot desync it.
+	const bsim::ZiplineSegment Seg = CurrentZipline->GetWorldSegment();
+	const float T = bsim::ProjectT(Seg, ToSim(CableProbe()));
+	const float NewT = bsim::AdvanceT(Seg, T, ZiplineDir, ZiplineCfg.Speed, DeltaTime);
+	const FVector Target = ToUE(bsim::PointAt(Seg, NewT)) + FVector(0.f, 0.f, ZiplineCfg.HangOffsetZ);
+
+	bJustTeleported = false;
+	const FVector OldLocation = UpdatedComponent->GetComponentLocation();
+	FHitResult Hit(1.f);
+	SafeMoveUpdatedComponent(Target - OldLocation, UpdatedComponent->GetComponentQuat(), true, Hit);
+	Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / DeltaTime;
+
+	const bool bReachedEnd = (ZiplineDir > 0) ? NewT >= 1.f : NewT <= 0.f;
+	if (Hit.bBlockingHit || bReachedEnd)
+	{
+		SetMovementMode(MOVE_Falling);
+	}
+}
+
+void UBrutusMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
+{
+	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
+	if (!IsOnZipline())
+	{
+		CurrentZipline.Reset();
 	}
 }
 
@@ -203,7 +293,7 @@ bool UBrutusMovementComponent::CanCrouchInCurrentState() const
 
 bool UBrutusMovementComponent::CanAttemptJump() const
 {
-	return IsJumpAllowed() && (IsMovingOnGround() || IsFalling() || IsSliding());
+	return IsJumpAllowed() && (IsMovingOnGround() || IsFalling() || IsSliding() || IsOnZipline());
 }
 
 #if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 4)
@@ -250,6 +340,8 @@ void FSavedMove_Brutus::Clear()
 	bSavedWantsToDash = 0;
 	bSavedWantsToSlide = 0;
 	bSavedWantsToZipline = 0;
+	SavedZiplineDir = 1;
+	SavedZipline.Reset();
 }
 
 uint8 FSavedMove_Brutus::GetCompressedFlags() const
@@ -290,6 +382,8 @@ void FSavedMove_Brutus::SetMoveFor(ACharacter* C, float InDeltaTime, FVector con
 		bSavedWantsToDash = Move->bWantsToDash;
 		bSavedWantsToSlide = Move->bWantsToSlide;
 		bSavedWantsToZipline = Move->bWantsToZipline;
+		SavedZiplineDir = Move->ZiplineDir;
+		SavedZipline = Move->CurrentZipline;
 	}
 }
 
@@ -301,6 +395,8 @@ void FSavedMove_Brutus::PrepMoveFor(ACharacter* C)
 		Move->bWantsToDash = bSavedWantsToDash;
 		Move->bWantsToSlide = bSavedWantsToSlide;
 		Move->bWantsToZipline = bSavedWantsToZipline;
+		Move->ZiplineDir = SavedZiplineDir;
+		Move->CurrentZipline = SavedZipline;
 	}
 }
 

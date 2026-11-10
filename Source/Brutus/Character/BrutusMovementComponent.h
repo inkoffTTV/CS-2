@@ -8,6 +8,8 @@
 #include "Zipline.h"
 #include "BrutusMovementComponent.generated.h"
 
+class UBrutusZiplineComponent;
+
 UENUM(BlueprintType)
 enum class EBrutusMoveMode : uint8
 {
@@ -65,6 +67,7 @@ public:
 	virtual bool DoJump(bool bReplayingMoves) override;
 #endif
 	virtual void ClientHandleMoveResponse(const FCharacterMoveResponseDataContainer& MoveResponse) override;
+	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 
 protected:
 	bsim::StaminaConfig StaminaCfg;
@@ -75,10 +78,18 @@ protected:
 	float DashTimeRemaining = 0.f;
 	float DashDuration = 0.2f;
 
+	bsim::ZiplineConfig ZiplineCfg;
+	TWeakObjectPtr<UBrutusZiplineComponent> CurrentZipline;
+	int8 ZiplineDir = 1;
+
 private:
 	void TryDash();
 	void TryStartSlide();
 	void PhysSlide(float DeltaTime, int32 Iterations);
+	void ToggleZipline();
+	void PhysZipline(float DeltaTime, int32 Iterations);
+	FVector CableProbe() const;
+	UBrutusZiplineComponent* FindZiplineNear(float MaxDist) const;
 
 	FBrutusMoveResponseDataContainer BrutusMoveResponseData;
 };
@@ -91,6 +102,8 @@ public:
 	uint8 bSavedWantsToDash : 1;
 	uint8 bSavedWantsToSlide : 1;
 	uint8 bSavedWantsToZipline : 1;
+	int8 SavedZiplineDir = 1;
+	TWeakObjectPtr<UBrutusZiplineComponent> SavedZipline;
 
 	virtual void Clear() override;
 	virtual uint8 GetCompressedFlags() const override;

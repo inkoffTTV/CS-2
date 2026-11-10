@@ -9,7 +9,6 @@
 	],
 	"Plugins": [
 		{ "Name": "GameplayAbilities", "Enabled": true },
-		{ "Name": "EnhancedInput", "Enabled": true },
-		{ "Name": "CableComponent", "Enabled": true }
+		{ "Name": "EnhancedInput", "Enabled": true }
 	]
 }

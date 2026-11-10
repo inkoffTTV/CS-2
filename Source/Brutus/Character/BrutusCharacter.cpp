@@ -151,6 +151,6 @@ void ABrutusCharacter::OnInteract()
 {
 	if (UBrutusMovementComponent* Move = GetBrutusMovement())
 	{
-		Move->bWantsToZipline = !Move->IsOnZipline();
+		Move->bWantsToZipline = true; // one-shot: attach, or detach when already riding
 	}
 }

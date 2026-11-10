@@ -11,8 +11,7 @@ public class Brutus : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
-			"GameplayAbilities", "GameplayTags", "GameplayTasks", "NetCore",
-			"CableComponent", "BrutusSim"
+			"GameplayAbilities", "GameplayTags", "GameplayTasks", "NetCore", "BrutusSim"
 		});
 	}
 }
