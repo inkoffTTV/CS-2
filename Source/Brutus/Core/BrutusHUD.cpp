@@ -1,5 +1,7 @@
 #include "Core/BrutusHUD.h"
 
+#include "Character/BrutusCharacter.h"
+#include "Character/BrutusMovementComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 
@@ -11,6 +13,15 @@ void ABrutusHUD::DrawHUD()
 		return;
 	}
 	DrawCrosshair();
+
+	int32 Row = 0;
+	if (const ABrutusCharacter* Hero = Cast<ABrutusCharacter>(GetOwningPawn()))
+	{
+		if (const UBrutusMovementComponent* Move = Hero->GetBrutusMovement())
+		{
+			DrawTextRow(FString::Printf(TEXT("Stamina %.1f / %d"), Move->GetStaminaCharges(), Move->GetMaxStaminaCharges()), Row++);
+		}
+	}
 }
 
 void ABrutusHUD::DrawCrosshair()

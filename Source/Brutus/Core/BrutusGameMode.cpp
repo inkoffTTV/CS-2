@@ -1,12 +1,12 @@
 #include "Core/BrutusGameMode.h"
 
 #include "Brutus.h"
+#include "Character/BrutusCharacter.h"
 #include "Core/BrutusGameState.h"
 #include "Core/BrutusHUD.h"
 #include "Core/BrutusPlayerController.h"
 #include "Core/BrutusPlayerState.h"
 #include "EngineUtils.h"
-#include "GameFramework/DefaultPawn.h"
 #include "GameFramework/PlayerStart.h"
 
 ABrutusGameMode::ABrutusGameMode()
@@ -15,7 +15,7 @@ ABrutusGameMode::ABrutusGameMode()
 	PlayerStateClass = ABrutusPlayerState::StaticClass();
 	GameStateClass = ABrutusGameState::StaticClass();
 	HUDClass = ABrutusHUD::StaticClass();
-	DefaultPawnClass = ADefaultPawn::StaticClass();
+	DefaultPawnClass = ABrutusCharacter::StaticClass();
 }
 
 void ABrutusGameMode::PostLogin(APlayerController* NewPlayer)
