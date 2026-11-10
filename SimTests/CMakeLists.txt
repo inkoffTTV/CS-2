@@ -8,4 +8,6 @@ list(FILTER SIM_SOURCES EXCLUDE REGEX "BrutusSimModule\\.cpp$")
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 add_executable(brutus_sim_tests ${SIM_SOURCES} ${TEST_SOURCES})
 target_include_directories(brutus_sim_tests PRIVATE ${SIM_DIR}/Public ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(brutus_sim_tests PRIVATE -Wall -Wextra -Wshadow -Werror -fno-exceptions -fno-rtti)
+target_compile_options(brutus_sim_tests PRIVATE -Wall -Wextra -Wshadow -Werror)
+# Sim code must build like UE: no exceptions, no RTTI. Tests keep exceptions for doctest REQUIRE.
+set_source_files_properties(${SIM_SOURCES} PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti")
