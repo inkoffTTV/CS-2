@@ -1,0 +1,14 @@
+# Unreal
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+# Native sim tests
+SimTests/build/
+# Roblox skins live outside the repo
+RobloxAssets/
+# Plan execution scratch
+.superpowers/
