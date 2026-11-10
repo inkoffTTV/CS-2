@@ -15,6 +15,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Vision/BrutusTeamVisionSubsystem.h"
 
 ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UBrutusMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -242,4 +243,20 @@ void ABrutusCharacter::OnFireStarted()
 void ABrutusCharacter::OnFireCompleted()
 {
 	Weapon->StopFire();
+}
+
+bool ABrutusCharacter::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
+{
+	if (!Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation))
+	{
+		return false;
+	}
+	const APlayerController* ViewerPC = Cast<APlayerController>(RealViewer);
+	const ABrutusPlayerState* ViewerPS = ViewerPC ? ViewerPC->GetPlayerState<ABrutusPlayerState>() : nullptr;
+	if (!ViewerPS || ViewerPS->GetTeamId() == GetTeamId())
+	{
+		return true;
+	}
+	const UBrutusTeamVisionSubsystem* VisionSubsystem = GetWorld()->GetSubsystem<UBrutusTeamVisionSubsystem>();
+	return !VisionSubsystem || VisionSubsystem->IsVisibleToTeam(this, ViewerPS->GetTeamId());
 }

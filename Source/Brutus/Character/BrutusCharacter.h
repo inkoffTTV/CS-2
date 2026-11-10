@@ -40,6 +40,13 @@ public:
 
 	UBrutusHitscanWeaponComponent* GetWeapon() const { return Weapon; }
 
+	// Invisible heroes (Nemo) are only revealed to enemies up close.
+	bool IsHiddenForVision() const { return bHiddenForVision; }
+	void SetHiddenForVision(bool bHidden) { bHiddenForVision = bHidden; }
+
+	// Enemies the viewer's team cannot see are not replicated to that viewer.
+	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
+
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -81,4 +88,6 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBrutusHitscanWeaponComponent> Weapon;
+
+	bool bHiddenForVision = false;
 };

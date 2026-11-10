@@ -6,6 +6,7 @@
 #include "Character/BrutusMovementComponent.h"
 #include "Combat/BrutusHitscanWeaponComponent.h"
 #include "Engine/Canvas.h"
+#include "EngineUtils.h"
 #include "Engine/Engine.h"
 
 void ABrutusHUD::DrawHUD()
@@ -27,6 +28,14 @@ void ABrutusHUD::DrawHUD()
 		const UBrutusAttributeSet* Attr = PS->GetAttributes();
 		DrawTextRow(FString::Printf(TEXT("Health %.0f / %.0f"), Attr->GetHealth(), Attr->GetMaxHealth()), Row++);
 		DrawTextRow(FString::Printf(TEXT("Team %d"), PS->GetTeamId()), Row++);
+
+		// Debug: enemies that exist on this client are exactly the ones the server lets us see.
+		int32 VisibleEnemies = 0;
+		for (TActorIterator<ABrutusCharacter> It(GetWorld()); It; ++It)
+		{
+			VisibleEnemies += (It->GetTeamId() != 255 && It->GetTeamId() != PS->GetTeamId()) ? 1 : 0;
+		}
+		DrawTextRow(FString::Printf(TEXT("Visible enemies %d"), VisibleEnemies), Row++, FLinearColor(0.6f, 0.8f, 1.f));
 	}
 	if (const ABrutusCharacter* Hero = Cast<ABrutusCharacter>(GetOwningPawn()))
 	{
