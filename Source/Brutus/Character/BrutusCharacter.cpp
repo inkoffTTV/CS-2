@@ -12,6 +12,7 @@
 #include "Core/BrutusPlayerController.h"
 #include "Core/BrutusPlayerState.h"
 #include "EnhancedInputComponent.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
 #include "UObject/ConstructorHelpers.h"
@@ -38,7 +39,8 @@ ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 	Camera->bUsePawnControlRotation = false;
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
-	BodyMesh->SetupAttachment(RootComponent);
+	// Attached to the skeletal mesh so CMC network smoothing (which offsets it) also moves the body on simulated proxies.
+	BodyMesh->SetupAttachment(GetMesh());
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (Cylinder.Succeeded())
@@ -134,6 +136,9 @@ void ABrutusCharacter::FitBodyMeshToCapsule()
 	const float Radius = Capsule->GetUnscaledCapsuleRadius();
 	const float HalfHeight = Capsule->GetUnscaledCapsuleHalfHeight();
 	BodyMesh->SetRelativeScale3D(FVector(Radius * 2.f / 100.f, Radius * 2.f / 100.f, HalfHeight * 2.f / 100.f));
+	// ACharacter shifts the skeletal mesh relative to the capsule (base offset, crouch half-height adjust);
+	// cancel that shift so the cylinder stays centred on the capsule. The mesh has no rotation or scale here.
+	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z));
 }
 
 void ABrutusCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)

@@ -129,7 +129,15 @@ void UBrutusMovementComponent::OnMovementUpdated(float DeltaSeconds, const FVect
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
 	bsim::Regen(Stamina, StaminaCfg, DeltaSeconds);
+	const bool bWasDashing = DashTimeRemaining > 0.f;
 	DashTimeRemaining = FMath::Max(0.f, DashTimeRemaining - DeltaSeconds);
+	if (bWasDashing && DashTimeRemaining <= 0.f && IsFalling())
+	{
+		// Air dash just ended: cap horizontal speed once so it cannot be carried as a launch. Z is kept.
+		const FVector Horizontal = FVector(Velocity.X, Velocity.Y, 0.f).GetClampedToMaxSize(MaxWalkSpeed * 1.25f);
+		Velocity.X = Horizontal.X;
+		Velocity.Y = Horizontal.Y;
+	}
 }
 
 void UBrutusMovementComponent::PhysCustom(float DeltaTime, int32 Iterations)
@@ -326,7 +334,8 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 #endif
 {
 	// Air jumps cost a stamina charge; the jump count limit comes from ACharacter::JumpMaxCount.
-	if (IsFalling() && !bsim::TryConsume(Stamina, StaminaCfg))
+	const bool bAirJump = IsFalling();
+	if (bAirJump && Stamina.Charges < 1.f)
 	{
 		return false;
 	}
@@ -335,6 +344,11 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 #else
 	const bool bJumped = Super::DoJump(bReplayingMoves);
 #endif
+	if (bAirJump && bJumped)
+	{
+		// Only pay once the base class actually performed the jump (it also enforces JumpMaxCount).
+		bsim::TryConsume(Stamina, StaminaCfg);
+	}
 	if (bJumped && IsFalling())
 	{
 		// An air jump resets downward speed so it always gains height.
@@ -345,13 +359,27 @@ bool UBrutusMovementComponent::DoJump(bool bReplayingMoves)
 
 void UBrutusMovementComponent::ClientHandleMoveResponse(const FCharacterMoveResponseDataContainer& MoveResponse)
 {
-	if (MoveResponse.IsCorrection())
+	const bool bCorrection = MoveResponse.IsCorrection();
+	const bsim::StaminaState PrevStamina = Stamina;
+	const float PrevDashTimeRemaining = DashTimeRemaining;
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	const bool bHadPendingUpdate = ClientData && ClientData->bUpdatePosition;
+
+	if (bCorrection)
 	{
 		const FBrutusMoveResponseDataContainer& Data = static_cast<const FBrutusMoveResponseDataContainer&>(MoveResponse);
 		Stamina.Charges = Data.StaminaCharges;
 		DashTimeRemaining = Data.DashTimeRemaining;
 	}
 	Super::ClientHandleMoveResponse(MoveResponse);
+
+	// ClientAdjustPosition sets bUpdatePosition only when it applies the correction. If the base class
+	// ignored it (stale or already-acknowledged move), the server values must not overwrite ours.
+	if (bCorrection && !bHadPendingUpdate && !(ClientData && ClientData->bUpdatePosition))
+	{
+		Stamina = PrevStamina;
+		DashTimeRemaining = PrevDashTimeRemaining;
+	}
 }
 
 // ---------------------------------------------------------------------------

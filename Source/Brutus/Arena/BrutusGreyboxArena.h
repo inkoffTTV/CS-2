@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "BrutusGreyboxArena.generated.h"
 
+class UStaticMesh;
 class UStaticMeshComponent;
 class UBrutusZiplineComponent;
 
