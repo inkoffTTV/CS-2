@@ -1,5 +1,7 @@
 #include "TeamVision.h"
 
+#include <iterator>
+
 namespace bsim
 {
 TeamVision::TeamVision(VisionConfig InConfig)
@@ -19,6 +21,13 @@ void TeamVision::Update(double Now, const std::vector<VisionActor>& InActors, co
     for (const VisionActor& A : InActors)
     {
         Actors[A.Id] = Known{A.Team, A.bHidden};
+    }
+
+    // Forget ids that are gone so a re-appearing id gets no inherited grace.
+    for (auto It = LastSeen.begin(); It != LastSeen.end();)
+    {
+        const int TargetId = static_cast<int>(It->first >> 32);
+        It = Actors.count(TargetId) ? std::next(It) : LastSeen.erase(It);
     }
 
     for (const VisionActor& Target : InActors)
