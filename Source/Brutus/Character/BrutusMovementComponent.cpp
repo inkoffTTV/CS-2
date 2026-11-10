@@ -222,6 +222,13 @@ void UBrutusMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovem
 	{
 		CurrentZipline.Reset();
 	}
+	if (IsSliding())
+	{
+		// The base class treats every non-walking mode as airborne: it clears the floor and lets
+		// crouching shrink the capsule around its centre. A slide is on the ground.
+		bCrouchMaintainsBaseLocation = true;
+		FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, false);
+	}
 }
 
 void UBrutusMovementComponent::PhysSlide(float DeltaTime, int32 Iterations)
@@ -289,6 +296,22 @@ float UBrutusMovementComponent::GetMaxBrakingDeceleration() const
 bool UBrutusMovementComponent::CanCrouchInCurrentState() const
 {
 	return Super::CanCrouchInCurrentState() || (CanEverCrouch() && IsSliding());
+}
+
+bool UBrutusMovementComponent::IsMovingOnGround() const
+{
+	return Super::IsMovingOnGround() || IsSliding();
+}
+
+void UBrutusMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)
+{
+	// During a dash neither friction nor braking may eat the dash speed, even with no input.
+	if (IsDashing())
+	{
+		Super::CalcVelocity(DeltaTime, 0.f, bFluid, 0.f);
+		return;
+	}
+	Super::CalcVelocity(DeltaTime, Friction, bFluid, BrakingDeceleration);
 }
 
 bool UBrutusMovementComponent::CanAttemptJump() const

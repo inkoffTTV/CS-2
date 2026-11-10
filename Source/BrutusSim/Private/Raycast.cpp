@@ -90,6 +90,10 @@ std::optional<RayHit> RaycastCapsules(const Ray& R, const std::vector<Capsule>& 
 
 double ClampRewindTime(double ServerNow, double ClientShotTime, double MaxRewind)
 {
+    if (!std::isfinite(ClientShotTime))
+    {
+        return ServerNow;
+    }
     return ServerNow - std::clamp(ServerNow - ClientShotTime, 0.0, MaxRewind);
 }
 } // namespace bsim

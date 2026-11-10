@@ -21,7 +21,7 @@ struct VisionActor
 
 struct VisionConfig
 {
-    double GraceSeconds = 1.0;
+    double GraceSeconds = 0.2; // the UE net driver adds ~1 s (RelevantTimeout) on top
     float HiddenRevealRadius = 600.f;
 };
 

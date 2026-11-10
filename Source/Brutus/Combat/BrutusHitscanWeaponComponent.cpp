@@ -58,8 +58,7 @@ bool UBrutusHitscanWeaponComponent::ComputeShot(FVector& OutStart, FVector& OutD
 	const FVector CamEnd = CamLoc + CamRot.Vector() * MaxRange;
 
 	FHitResult AimHit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(BrutusAim), false, Pawn);
-	const FVector AimPoint = GetWorld()->LineTraceSingleByChannel(AimHit, CamLoc, CamEnd, ECC_Visibility, Params) ? AimHit.ImpactPoint : CamEnd;
+	const FVector AimPoint = TraceAimable(CamLoc, CamEnd, AimHit) ? AimHit.ImpactPoint : CamEnd;
 
 	OutStart = Pawn->GetPawnViewLocation();
 	OutDir = (AimPoint - OutStart).GetSafeNormal();
@@ -77,8 +76,7 @@ void UBrutusHitscanWeaponComponent::FireOnce()
 
 	// Cosmetic tracer right away for the shooter.
 	FHitResult Hit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(BrutusTracer), false, GetOwner());
-	const FVector End = GetWorld()->LineTraceSingleByChannel(Hit, Start, Start + Dir * MaxRange, ECC_Visibility, Params) ? Hit.ImpactPoint : Start + Dir * MaxRange;
+	const FVector End = TraceAimable(Start, Start + Dir * MaxRange, Hit) ? Hit.ImpactPoint : Start + Dir * MaxRange;
 	DrawTracer(Start, End, FColor::Yellow);
 
 	const AGameStateBase* GS = GetWorld()->GetGameState();
@@ -95,8 +93,17 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 		return;
 	}
 
+	if (!FMath::IsFinite(ClientServerTime))
+	{
+		return; // malformed timestamp
+	}
 	const double Now = LagComp->GetServerTime();
-	if (Now - LastServerFireTime < 0.8 / FireRate)
+	if (LastServerTokenTime >= 0.0)
+	{
+		ServerShotTokens = FMath::Min(MaxShotBurst, ServerShotTokens + static_cast<float>((Now - LastServerTokenTime) * FireRate));
+	}
+	LastServerTokenTime = Now;
+	if (ServerShotTokens < 1.f)
 	{
 		return; // faster than the weapon allows
 	}
@@ -105,7 +112,7 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 		UE_LOG(LogBrutus, Warning, TEXT("%s: shot start too far from the hero's eyes, rejected"), *GetNameSafe(Shooter));
 		return;
 	}
-	LastServerFireTime = Now;
+	ServerShotTokens -= 1.f;
 
 	const double RewindTime = bsim::ClampRewindTime(Now, ClientServerTime, UBrutusLagCompensationSubsystem::MaxShotRewind);
 	const TOptional<FBrutusRewindHit> Hit = LagComp->RewindTrace(Start, Dir, MaxRange, RewindTime, Shooter);
@@ -139,6 +146,17 @@ void UBrutusHitscanWeaponComponent::Multicast_Tracer_Implementation(FVector_NetQ
 		return; // the shooter already drew it
 	}
 	DrawTracer(Start, End, FColor::Orange);
+}
+
+bool UBrutusHitscanWeaponComponent::TraceAimable(const FVector& From, const FVector& To, FHitResult& OutHit) const
+{
+	// Pawns ignore the Visibility channel, so aim against objects that include pawns.
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_WorldStatic);
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	Objects.AddObjectTypesToQuery(ECC_Pawn);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(BrutusAim), false, GetOwner());
+	return GetWorld()->LineTraceSingleByObjectType(OutHit, From, To, Objects, Params);
 }
 
 void UBrutusHitscanWeaponComponent::DrawTracer(const FVector& Start, const FVector& End, const FColor& Color) const

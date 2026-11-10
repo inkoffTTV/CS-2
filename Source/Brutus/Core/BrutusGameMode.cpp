@@ -22,15 +22,21 @@ ABrutusGameMode::ABrutusGameMode()
 	DefaultPawnClass = ABrutusCharacter::StaticClass();
 }
 
-void ABrutusGameMode::PostLogin(APlayerController* NewPlayer)
+FString ABrutusGameMode::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal)
 {
-	// Team must be known before Super spawns the pawn at a team start.
-	if (ABrutusPlayerState* PS = NewPlayer ? NewPlayer->GetPlayerState<ABrutusPlayerState>() : nullptr)
+	// Super chooses the start spot, so the team must be known first.
+	if (ABrutusPlayerState* PS = NewPlayerController ? NewPlayerController->GetPlayerState<ABrutusPlayerState>() : nullptr)
 	{
 		PS->SetTeamId(PickTeamForNewPlayer(PS));
-		UE_LOG(LogBrutus, Log, TEXT("%s joined team %d"), *PS->GetPlayerName(), PS->GetTeamId());
+		UE_LOG(LogBrutus, Log, TEXT("New player joined team %d"), PS->GetTeamId());
 	}
-	Super::PostLogin(NewPlayer);
+	return Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
+}
+
+bool ABrutusGameMode::ShouldSpawnAtStartSpot_Implementation(AController* Player)
+{
+	// Always pick a fresh start of the player's team (also on respawn).
+	return false;
 }
 
 uint8 ABrutusGameMode::PickTeamForNewPlayer(const APlayerState* NewPlayerState) const

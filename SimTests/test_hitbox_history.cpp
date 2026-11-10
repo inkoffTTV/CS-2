@@ -1,6 +1,8 @@
 #include "third_party/doctest.h"
 #include "HitboxHistory.h"
 
+#include <cmath>
+
 using namespace bsim;
 
 static std::vector<Capsule> At(float X)
@@ -74,4 +76,12 @@ TEST_CASE("Different shape counts fall back to the earlier snapshot")
     REQUIRE(S.has_value());
     CHECK(S->size() == 1);
     CHECK((*S)[0].A.X == doctest::Approx(0.f));
+}
+
+TEST_CASE("SampleAt with a non-finite time is a miss, not a crash")
+{
+    HitboxHistory H;
+    H.Record(0.0, At(0));
+    H.Record(1.0, At(100));
+    CHECK_FALSE(H.SampleAt(std::nan("")).has_value());
 }

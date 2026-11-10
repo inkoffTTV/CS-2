@@ -25,13 +25,14 @@ TEST_CASE("Enemy behind a wall is not visible")
     CHECK_FALSE(V.IsVisibleToTeam(2, 0));
 }
 
-TEST_CASE("Seen enemy stays visible for the grace period")
+TEST_CASE("Seen enemy stays visible for the short default grace period")
 {
+    // The net driver keeps a channel open ~1 s longer on its own, so sim grace is short.
     TeamVision V;
     V.Update(0.0, {Observer(), Enemy(1500)}, Clear);
-    V.Update(0.5, {Observer(), Enemy(1500)}, Blocked);
+    V.Update(0.15, {Observer(), Enemy(1500)}, Blocked);
     CHECK(V.IsVisibleToTeam(2, 0));
-    V.Update(1.6, {Observer(), Enemy(1500)}, Blocked);
+    V.Update(0.3, {Observer(), Enemy(1500)}, Blocked);
     CHECK_FALSE(V.IsVisibleToTeam(2, 0));
 }
 

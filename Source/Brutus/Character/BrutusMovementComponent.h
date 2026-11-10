@@ -60,6 +60,8 @@ public:
 	virtual float GetMaxSpeed() const override;
 	virtual float GetMaxBrakingDeceleration() const override;
 	virtual bool CanCrouchInCurrentState() const override;
+	virtual bool IsMovingOnGround() const override;
+	virtual void CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration) override;
 	virtual bool CanAttemptJump() const override;
 #if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 4)
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;

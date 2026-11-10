@@ -63,12 +63,13 @@ void UBrutusLagCompensationSubsystem::Tick(float DeltaTime)
 			continue;
 		}
 		const TWeakObjectPtr<ABrutusCharacter> Key(Hero);
-		bsim::HitboxHistory* History = Histories.Find(Key);
-		if (!History)
+		TUniquePtr<bsim::HitboxHistory>* Found = Histories.Find(Key);
+		if (!Found)
 		{
-			History = &Histories.Add(Key, bsim::HitboxHistory(HistorySeconds));
+			Found = &Histories.Add(Key, MakeUnique<bsim::HitboxHistory>(HistorySeconds));
 			Hero->OnTeleported.AddUObject(this, &UBrutusLagCompensationSubsystem::OnHeroTeleported);
 		}
+		bsim::HitboxHistory* History = Found->Get();
 		const bool bTeleported = PendingTeleports.Remove(Key) > 0;
 		History->Record(Now, Hitbox->BuildWorldCapsules(), bTeleported);
 		History->Prune(Now);
@@ -95,14 +96,14 @@ TOptional<FBrutusRewindHit> UBrutusLagCompensationSubsystem::RewindTrace(const F
 	const bool bDebug = CVarBrutusDebugLagComp.GetValueOnGameThread() != 0;
 
 	TOptional<FBrutusRewindHit> Best;
-	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, bsim::HitboxHistory>& Pair : Histories)
+	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, TUniquePtr<bsim::HitboxHistory>>& Pair : Histories)
 	{
 		ABrutusCharacter* Hero = Pair.Key.Get();
 		if (!Hero || Hero == Shooter)
 		{
 			continue;
 		}
-		const std::optional<std::vector<bsim::Capsule>> Shapes = Pair.Value.SampleAt(ShotServerTime);
+		const std::optional<std::vector<bsim::Capsule>> Shapes = Pair.Value->SampleAt(ShotServerTime);
 		if (!Shapes)
 		{
 			continue;

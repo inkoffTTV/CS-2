@@ -37,6 +37,7 @@ public:
 private:
 	void OnHeroTeleported(ABrutusCharacter* Hero);
 
-	TMap<TWeakObjectPtr<ABrutusCharacter>, bsim::HitboxHistory> Histories;
+	// TUniquePtr: UE containers relocate values with memcpy, which std::deque inside the history does not guarantee to survive.
+	TMap<TWeakObjectPtr<ABrutusCharacter>, TUniquePtr<bsim::HitboxHistory>> Histories;
 	TSet<TWeakObjectPtr<ABrutusCharacter>> PendingTeleports;
 };

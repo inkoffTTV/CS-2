@@ -14,7 +14,8 @@ class BRUTUS_API ABrutusGameMode : public AGameModeBase
 public:
 	ABrutusGameMode();
 
-	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal = TEXT("")) override;
+	virtual bool ShouldSpawnAtStartSpot_Implementation(AController* Player) override;
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 
 	// Server: removes the dead hero and respawns its owner after RespawnDelay.

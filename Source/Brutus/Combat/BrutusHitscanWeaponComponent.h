@@ -40,6 +40,7 @@ private:
 	void FireOnce();
 	bool ComputeShot(FVector& OutStart, FVector& OutDir) const;
 	void DrawTracer(const FVector& Start, const FVector& End, const FColor& Color) const;
+	bool TraceAimable(const FVector& From, const FVector& To, FHitResult& OutHit) const;
 
 	UFUNCTION(Server, Reliable)
 	void Server_Fire(FVector_NetQuantize Start, FVector_NetQuantizeNormal Dir, double ClientServerTime);
@@ -52,7 +53,10 @@ private:
 
 	bool bTriggerHeld = false;
 	double NextLocalFireTime = 0.0;
-	double LastServerFireTime = -1000.0;
+	// Server rate limit: token bucket that tolerates RPC bursts after packet loss.
+	static constexpr float MaxShotBurst = 3.f;
+	float ServerShotTokens = MaxShotBurst;
+	double LastServerTokenTime = -1.0;
 	double LastHitMarkerTime = -1000.0;
 	bool bLastHitHead = false;
 };

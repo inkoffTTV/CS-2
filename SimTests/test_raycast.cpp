@@ -1,6 +1,9 @@
 #include "third_party/doctest.h"
 #include "Raycast.h"
 
+#include <cmath>
+#include <limits>
+
 using namespace bsim;
 
 static const std::vector<Capsule> Target{
@@ -61,4 +64,10 @@ TEST_CASE("Rewind time is clamped to [now - MaxRewind, now]")
     CHECK(ClampRewindTime(10.0, 9.9) == doctest::Approx(9.9));
     CHECK(ClampRewindTime(10.0, 9.5) == doctest::Approx(9.75));
     CHECK(ClampRewindTime(10.0, 10.2) == doctest::Approx(10.0));
+}
+
+TEST_CASE("Non-finite client shot time is treated as now")
+{
+    CHECK(ClampRewindTime(10.0, std::nan("")) == doctest::Approx(10.0));
+    CHECK(ClampRewindTime(10.0, -std::numeric_limits<double>::infinity()) == doctest::Approx(10.0));
 }

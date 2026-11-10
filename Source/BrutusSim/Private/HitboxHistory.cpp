@@ -1,6 +1,7 @@
 #include "HitboxHistory.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace bsim
@@ -21,7 +22,7 @@ void HitboxHistory::Record(double Time, std::vector<Capsule> Shapes, bool bTelep
 
 std::optional<std::vector<Capsule>> HitboxHistory::SampleAt(double Time) const
 {
-    if (Snapshots.empty() || Time < Snapshots.front().Time)
+    if (Snapshots.empty() || !std::isfinite(Time) || Time < Snapshots.front().Time)
     {
         return std::nullopt;
     }
@@ -33,6 +34,10 @@ std::optional<std::vector<Capsule>> HitboxHistory::SampleAt(double Time) const
     // First snapshot strictly after Time; the one before it is at or before Time.
     const auto Next = std::upper_bound(Snapshots.begin(), Snapshots.end(), Time,
         [](double T, const Snapshot& S) { return T < S.Time; });
+    if (Next == Snapshots.begin() || Next == Snapshots.end())
+    {
+        return std::nullopt;
+    }
     const Snapshot& S1 = *Next;
     const Snapshot& S0 = *(Next - 1);
 
