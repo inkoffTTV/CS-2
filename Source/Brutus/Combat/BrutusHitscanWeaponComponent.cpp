@@ -1,18 +1,22 @@
 #include "Combat/BrutusHitscanWeaponComponent.h"
 
 #include "Abilities/BrutusDamageEffect.h"
+#include "Abilities/BrutusStunEffect.h"
 #include "Brutus.h"
 #include "Character/BrutusCharacter.h"
 #include "Combat/BrutusLagCompensationSubsystem.h"
+#include "Core/BrutusSimConvert.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "Raycast.h"
+#include "Spread.h"
 
 UBrutusHitscanWeaponComponent::UBrutusHitscanWeaponComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	SetIsReplicatedByDefault(true);
+	SeedStream.GenerateNewSeed();
 }
 
 void UBrutusHitscanWeaponComponent::StartFire()
@@ -31,6 +35,10 @@ void UBrutusHitscanWeaponComponent::TickComponent(float DeltaTime, ELevelTick Ti
 
 	const APawn* Pawn = Cast<APawn>(GetOwner());
 	if (!bTriggerHeld || !Pawn || !Pawn->IsLocallyControlled())
+	{
+		return;
+	}
+	if (UBrutusStunEffect::IsActorStunned(Pawn))
 	{
 		return;
 	}
@@ -65,6 +73,22 @@ bool UBrutusHitscanWeaponComponent::ComputeShot(FVector& OutStart, FVector& OutD
 	return !OutDir.IsNearlyZero();
 }
 
+TArray<FVector> UBrutusHitscanWeaponComponent::BuildPelletDirections(const FVector& Dir, uint32 Seed) const
+{
+	const std::vector<bsim::Vec3> SimDirs = bsim::PelletDirections(ToSim(Dir.GetSafeNormal()), FMath::Max(0.f, SpreadDegrees), GetClampedPellets(), Seed);
+	TArray<FVector> Result;
+	Result.Reserve(static_cast<int32>(SimDirs.size()));
+	for (const bsim::Vec3& SimDir : SimDirs)
+	{
+		const FVector PelletDir = ToUE(SimDir).GetSafeNormal();
+		if (!PelletDir.IsNearlyZero())
+		{
+			Result.Add(PelletDir);
+		}
+	}
+	return Result;
+}
+
 void UBrutusHitscanWeaponComponent::FireOnce()
 {
 	FVector Start;
@@ -73,18 +97,22 @@ void UBrutusHitscanWeaponComponent::FireOnce()
 	{
 		return;
 	}
+	const uint32 Seed = SeedStream.GetUnsignedInt();
 
-	// Cosmetic tracer right away for the shooter.
-	FHitResult Hit;
-	const FVector End = TraceAimable(Start, Start + Dir * MaxRange, Hit) ? Hit.ImpactPoint : Start + Dir * MaxRange;
-	DrawTracer(Start, End, FColor::Yellow);
+	// Cosmetic tracers right away for the shooter.
+	for (const FVector& PelletDir : BuildPelletDirections(Dir, Seed))
+	{
+		FHitResult Hit;
+		const FVector End = TraceAimable(Start, Start + PelletDir * MaxRange, Hit) ? Hit.ImpactPoint : Start + PelletDir * MaxRange;
+		DrawTracer(Start, End, FColor::Yellow);
+	}
 
 	const AGameStateBase* GS = GetWorld()->GetGameState();
 	const double ClientServerTime = GS ? GS->GetServerWorldTimeSeconds() : GetWorld()->GetTimeSeconds();
-	Server_Fire(Start, Dir, ClientServerTime);
+	Server_Fire(Start, Dir, ClientServerTime, Seed);
 }
 
-void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuantize Start, FVector_NetQuantizeNormal Dir, double ClientServerTime)
+void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuantize Start, FVector_NetQuantizeNormal Dir, double ClientServerTime, uint32 Seed)
 {
 	ABrutusCharacter* Shooter = Cast<ABrutusCharacter>(GetOwner());
 	UBrutusLagCompensationSubsystem* LagComp = GetWorld()->GetSubsystem<UBrutusLagCompensationSubsystem>();
@@ -96,6 +124,10 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 	if (!FMath::IsFinite(ClientServerTime))
 	{
 		return; // malformed timestamp
+	}
+	if (UBrutusStunEffect::IsActorStunned(Shooter))
+	{
+		return; // stunned heroes cannot fire
 	}
 	const double Now = LagComp->GetServerTime();
 	if (LastServerTokenTime >= 0.0)
@@ -115,21 +147,34 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 	ServerShotTokens -= 1.f;
 
 	const double RewindTime = bsim::ClampRewindTime(Now, ClientServerTime, UBrutusLagCompensationSubsystem::MaxShotRewind);
-	const TOptional<FBrutusRewindHit> Hit = LagComp->RewindTrace(Start, Dir, MaxRange, RewindTime, Shooter);
 
-	FVector End = Start + Dir * MaxRange;
-	if (Hit && Hit->Target.IsValid())
+	// Pellet damage is summed per target so each target takes one damage application per shot.
+	TMap<TWeakObjectPtr<ABrutusCharacter>, float> DamageByTarget;
+	bool bAnyHead = false;
+	for (const FVector& PelletDir : BuildPelletDirections(Dir, Seed))
 	{
-		End = Hit->ImpactPoint;
-		ABrutusCharacter* Target = Hit->Target.Get();
-		if (Target->GetTeamId() != Shooter->GetTeamId())
+		const TOptional<FBrutusRewindHit> Hit = LagComp->RewindTrace(Start, PelletDir, MaxRange, RewindTime, Shooter);
+		if (!Hit || !Hit->Target.IsValid() || Hit->Target->GetTeamId() == Shooter->GetTeamId())
 		{
-			const bool bHead = Hit->Zone == bsim::HitZone::Head;
-			UBrutusDamageEffect::Apply(Shooter->GetAbilitySystemComponent(), Target->GetAbilitySystemComponent(), Damage * (bHead ? HeadMultiplier : 1.f));
-			Client_ConfirmHit(bHead);
+			continue;
+		}
+		const bool bHead = Hit->Zone == bsim::HitZone::Head;
+		bAnyHead |= bHead;
+		DamageByTarget.FindOrAdd(Hit->Target) += Damage * (bHead ? HeadMultiplier : 1.f);
+	}
+
+	for (const TPair<TWeakObjectPtr<ABrutusCharacter>, float>& Pair : DamageByTarget)
+	{
+		if (ABrutusCharacter* Target = Pair.Key.Get())
+		{
+			UBrutusDamageEffect::Apply(Shooter->GetAbilitySystemComponent(), Target->GetAbilitySystemComponent(), Pair.Value);
 		}
 	}
-	Multicast_Tracer(Start, End);
+	if (DamageByTarget.Num() > 0)
+	{
+		Client_ConfirmHit(bAnyHead); // one hit marker per shot
+	}
+	Multicast_Tracer(Start, Dir, Seed);
 }
 
 void UBrutusHitscanWeaponComponent::Client_ConfirmHit_Implementation(bool bHead)
@@ -138,14 +183,19 @@ void UBrutusHitscanWeaponComponent::Client_ConfirmHit_Implementation(bool bHead)
 	bLastHitHead = bHead;
 }
 
-void UBrutusHitscanWeaponComponent::Multicast_Tracer_Implementation(FVector_NetQuantize Start, FVector_NetQuantize End)
+void UBrutusHitscanWeaponComponent::Multicast_Tracer_Implementation(FVector_NetQuantize Start, FVector_NetQuantizeNormal Dir, uint32 Seed)
 {
 	const APawn* Pawn = Cast<APawn>(GetOwner());
-	if (Pawn && Pawn->IsLocallyControlled())
+	if ((Pawn && Pawn->IsLocallyControlled()) || GetWorld()->GetNetMode() == NM_DedicatedServer)
 	{
-		return; // the shooter already drew it
+		return; // the shooter already drew it; nothing to draw on a dedicated server
 	}
-	DrawTracer(Start, End, FColor::Orange);
+	for (const FVector& PelletDir : BuildPelletDirections(Dir, Seed))
+	{
+		FHitResult Hit;
+		const FVector End = TraceAimable(Start, Start + PelletDir * MaxRange, Hit) ? Hit.ImpactPoint : Start + PelletDir * MaxRange;
+		DrawTracer(Start, End, FColor::Orange);
+	}
 }
 
 bool UBrutusHitscanWeaponComponent::TraceAimable(const FVector& From, const FVector& To, FHitResult& OutHit) const

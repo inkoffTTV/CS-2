@@ -1,5 +1,9 @@
 #include "Character/BrutusMovementComponent.h"
 
+#include "Abilities/BrutusAttributeSet.h"
+#include "Abilities/BrutusStunEffect.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Core/BrutusSimConvert.h"
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
@@ -57,6 +61,11 @@ bool UBrutusMovementComponent::IsOnZipline() const
 	return MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(EBrutusMoveMode::Zipline);
 }
 
+bool UBrutusMovementComponent::IsStunned() const
+{
+	return UBrutusStunEffect::IsActorStunned(CharacterOwner);
+}
+
 FNetworkPredictionData_Client* UBrutusMovementComponent::GetPredictionData_Client() const
 {
 	if (!ClientPredictionData)
@@ -97,7 +106,7 @@ void UBrutusMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSec
 
 void UBrutusMovementComponent::TryDash()
 {
-	if (IsOnZipline() || !bsim::TryConsume(Stamina, StaminaCfg))
+	if (IsOnZipline() || IsStunned() || !bsim::TryConsume(Stamina, StaminaCfg))
 	{
 		return;
 	}
@@ -113,7 +122,7 @@ void UBrutusMovementComponent::TryDash()
 
 void UBrutusMovementComponent::TryStartSlide()
 {
-	if (!bWantsToSlide || IsSliding() || !IsMovingOnGround())
+	if (!bWantsToSlide || IsSliding() || !IsMovingOnGround() || IsStunned())
 	{
 		return;
 	}
@@ -172,7 +181,7 @@ void UBrutusMovementComponent::ToggleZipline()
 		SetMovementMode(MOVE_Falling);
 		return;
 	}
-	UBrutusZiplineComponent* Zipline = FindZiplineNear(ZiplineCfg.AttachRadius);
+	UBrutusZiplineComponent* Zipline = IsStunned() ? nullptr : FindZiplineNear(ZiplineCfg.AttachRadius);
 	if (!Zipline)
 	{
 		return;
@@ -281,15 +290,33 @@ void UBrutusMovementComponent::PhysSlide(float DeltaTime, int32 Iterations)
 
 float UBrutusMovementComponent::GetMaxSpeed() const
 {
+	float Multiplier = 1.f;
+	if (const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(CharacterOwner))
+	{
+		if (const UBrutusAttributeSet* Attributes = ASC->GetSet<UBrutusAttributeSet>())
+		{
+			Multiplier = FMath::Max(0.f, Attributes->GetMoveSpeedMultiplier());
+		}
+	}
 	if (IsDashing())
 	{
-		return MoveCfg.DashSpeed;
+		return MoveCfg.DashSpeed * Multiplier;
 	}
 	if (IsSliding())
 	{
-		return MoveCfg.SlideMaxSpeed;
+		return MoveCfg.SlideMaxSpeed * Multiplier;
 	}
-	return Super::GetMaxSpeed();
+	return Super::GetMaxSpeed() * Multiplier;
+}
+
+FVector UBrutusMovementComponent::ConstrainInputAcceleration(const FVector& InputAcceleration) const
+{
+	// Used for both the locally predicted move and the server replay of the client's move.
+	if (IsStunned())
+	{
+		return FVector::ZeroVector;
+	}
+	return Super::ConstrainInputAcceleration(InputAcceleration);
 }
 
 float UBrutusMovementComponent::GetMaxBrakingDeceleration() const
@@ -324,7 +351,7 @@ void UBrutusMovementComponent::CalcVelocity(float DeltaTime, float Friction, boo
 
 bool UBrutusMovementComponent::CanAttemptJump() const
 {
-	return IsJumpAllowed() && (IsMovingOnGround() || IsFalling() || IsSliding() || IsOnZipline());
+	return IsJumpAllowed() && !IsStunned() && (IsMovingOnGround() || IsFalling() || IsSliding() || IsOnZipline());
 }
 
 #if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 4)

@@ -1,6 +1,10 @@
 #include "Core/BrutusPlayerController.h"
 
+#include "Brutus.h"
+#include "Core/BrutusGameMode.h"
+#include "Engine/World.h"
 #include "EnhancedInputSubsystems.h"
+#include "HAL/IConsoleManager.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
@@ -56,6 +60,10 @@ void ABrutusPlayerController::BuildInput()
 	UInputAction* Slide = MakeAction(TEXT("IA_Slide"), EInputActionValueType::Boolean);
 	UInputAction* Fire = MakeAction(TEXT("IA_Fire"), EInputActionValueType::Boolean);
 	UInputAction* Interact = MakeAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
+	UInputAction* Ability1 = MakeAction(TEXT("IA_Ability1"), EInputActionValueType::Boolean);
+	UInputAction* Ability2 = MakeAction(TEXT("IA_Ability2"), EInputActionValueType::Boolean);
+	UInputAction* Ultimate = MakeAction(TEXT("IA_Ultimate"), EInputActionValueType::Boolean);
+	UInputAction* AltFire = MakeAction(TEXT("IA_AltFire"), EInputActionValueType::Boolean);
 	check(Actions.Num() == static_cast<int32>(EBrutusInput::Count));
 
 	// Move: X = right, Y = forward.
@@ -78,4 +86,41 @@ void ABrutusPlayerController::BuildInput()
 	MappingContext->MapKey(Slide, EKeys::C);
 	MappingContext->MapKey(Fire, EKeys::LeftMouseButton);
 	MappingContext->MapKey(Interact, EKeys::E);
+	MappingContext->MapKey(Ability1, EKeys::Q);
+	MappingContext->MapKey(Ability2, EKeys::F);
+	MappingContext->MapKey(Ultimate, EKeys::R);
+	MappingContext->MapKey(AltFire, EKeys::RightMouseButton);
 }
+
+void ABrutusPlayerController::Server_SelectHero_Implementation(EBrutusHero Hero)
+{
+	if (!BrutusHeroRegistry::IsValidHero(Hero))
+	{
+		return;
+	}
+	if (ABrutusGameMode* GM = GetWorld()->GetAuthGameMode<ABrutusGameMode>())
+	{
+		GM->ChangeHero(this, Hero);
+	}
+}
+
+// brutus.Hero Clavus|Malleus — switch the local player's hero (works on clients and the host).
+static FAutoConsoleCommandWithWorldAndArgs GBrutusHero(
+	TEXT("brutus.Hero"),
+	TEXT("brutus.Hero Clavus|Malleus: switch your hero and respawn as it."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		EBrutusHero Hero = EBrutusHero::Clavus;
+		if (Args.Num() < 1 || !BrutusHeroRegistry::ParseHeroName(Args[0], Hero))
+		{
+			UE_LOG(LogBrutus, Warning, TEXT("Usage: brutus.Hero Clavus|Malleus"));
+			return;
+		}
+		ABrutusPlayerController* PC = World ? Cast<ABrutusPlayerController>(World->GetFirstPlayerController()) : nullptr;
+		if (!PC || !PC->IsLocalController())
+		{
+			UE_LOG(LogBrutus, Warning, TEXT("brutus.Hero: no local player."));
+			return;
+		}
+		PC->Server_SelectHero(Hero);
+	}));

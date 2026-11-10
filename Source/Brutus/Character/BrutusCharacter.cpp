@@ -1,7 +1,10 @@
 #include "Character/BrutusCharacter.h"
 
 #include "Abilities/BrutusAttributeSet.h"
+#include "Abilities/BrutusCooldownEffect.h"
+#include "Abilities/BrutusStunEffect.h"
 #include "AbilitySystemComponent.h"
+#include "GameplayEffect.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BrutusHitboxComponent.h"
 #include "Character/BrutusMovementComponent.h"
@@ -78,6 +81,17 @@ uint8 ABrutusCharacter::GetTeamId() const
 	return PS ? PS->GetTeamId() : 255;
 }
 
+void ABrutusCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	// Hero constructors may have resized the capsule after the base constructor fitted the body.
+	FitBodyMeshToCapsule();
+	if (Weapon)
+	{
+		ConfigureWeapon(*Weapon);
+	}
+}
+
 void ABrutusCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
@@ -85,8 +99,60 @@ void ABrutusCharacter::PossessedBy(AController* NewController)
 	if (ABrutusPlayerState* PS = GetBrutusPlayerState())
 	{
 		PS->GetAttributes()->OnOutOfHealth.AddUObject(this, &ABrutusCharacter::HandleOutOfHealth);
+		GrantHeroAbilities(*PS->GetAbilitySystemComponent());
+		ResetHeroState(*PS);
 	}
 	NotifyTeleported();
+}
+
+void ABrutusCharacter::UnPossessed()
+{
+	// The player state is cleared by Super; stop listening to its health first.
+	if (ABrutusPlayerState* PS = GetBrutusPlayerState())
+	{
+		PS->GetAttributes()->OnOutOfHealth.RemoveAll(this);
+	}
+	Super::UnPossessed();
+}
+
+void ABrutusCharacter::GrantHeroAbilities(UAbilitySystemComponent& ASC)
+{
+	// The ability system lives on the player state: drop the previous hero's (or life's) abilities first.
+	ASC.ClearAllAbilities();
+	for (const TSubclassOf<UBrutusGameplayAbility>& AbilityClass : GetHeroAbilities())
+	{
+		UBrutusGameplayAbility* Ability = AbilityClass ? AbilityClass.GetDefaultObject() : nullptr;
+		if (!Ability)
+		{
+			continue;
+		}
+		const int32 InputId = Ability->InputId == EBrutusAbilityInput::None ? INDEX_NONE : static_cast<int32>(Ability->InputId);
+		ASC.GiveAbility(FGameplayAbilitySpec(Ability, 1, InputId, this));
+	}
+}
+
+void ABrutusCharacter::ResetHeroState(ABrutusPlayerState& PS)
+{
+	UAbilitySystemComponent* ASC = PS.GetAbilitySystemComponent();
+
+	// Timed effects of the previous life or hero (cooldowns, stun, slows, buffs) must not carry over.
+	// Infinite effects (future items) stay with the player.
+	ASC->RemoveActiveGameplayEffectBySourceEffect(UBrutusCooldownEffect::StaticClass(), nullptr);
+	ASC->RemoveActiveGameplayEffectBySourceEffect(UBrutusStunEffect::StaticClass(), nullptr);
+	for (const FActiveGameplayEffectHandle& Handle : ASC->GetActiveEffects(FGameplayEffectQuery()))
+	{
+		const FActiveGameplayEffect* Effect = ASC->GetActiveGameplayEffect(Handle);
+		if (Effect && Effect->Spec.Def && Effect->Spec.Def->DurationPolicy == EGameplayEffectDurationType::HasDuration)
+		{
+			ASC->RemoveActiveGameplayEffect(Handle);
+		}
+	}
+
+	ASC->SetNumericAttributeBase(UBrutusAttributeSet::GetMaxHealthAttribute(), HeroMaxHealth);
+	ASC->SetNumericAttributeBase(UBrutusAttributeSet::GetHealthAttribute(), HeroMaxHealth);
+	ASC->SetNumericAttributeBase(UBrutusAttributeSet::GetMoveSpeedMultiplierAttribute(), 1.f);
+	ASC->SetNumericAttributeBase(UBrutusAttributeSet::GetDamageTakenMultiplierAttribute(), 1.f);
+	PS.GetAttributes()->ResetOutOfHealth();
 }
 
 void ABrutusCharacter::OnRep_PlayerState()
@@ -181,6 +247,17 @@ void ABrutusCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(PC->GetAction(EBrutusInput::Interact), ETriggerEvent::Started, this, &ABrutusCharacter::OnInteract);
 	Input->BindAction(PC->GetAction(EBrutusInput::Fire), ETriggerEvent::Started, this, &ABrutusCharacter::OnFireStarted);
 	Input->BindAction(PC->GetAction(EBrutusInput::Fire), ETriggerEvent::Completed, this, &ABrutusCharacter::OnFireCompleted);
+
+	// Ability keys go to the ability system with the slot as GAS InputID.
+	auto BindAbilityInput = [this, Input, PC](EBrutusInput Action, EBrutusAbilityInput AbilityInput)
+	{
+		Input->BindAction(PC->GetAction(Action), ETriggerEvent::Started, this, &ABrutusCharacter::OnAbilityInputPressed, AbilityInput);
+		Input->BindAction(PC->GetAction(Action), ETriggerEvent::Completed, this, &ABrutusCharacter::OnAbilityInputReleased, AbilityInput);
+	};
+	BindAbilityInput(EBrutusInput::Ability1, EBrutusAbilityInput::Ability1);
+	BindAbilityInput(EBrutusInput::Ability2, EBrutusAbilityInput::Ability2);
+	BindAbilityInput(EBrutusInput::Ultimate, EBrutusAbilityInput::Ultimate);
+	BindAbilityInput(EBrutusInput::AltFire, EBrutusAbilityInput::AltFire);
 }
 
 void ABrutusCharacter::OnMove(const FInputActionValue& Value)
@@ -248,6 +325,22 @@ void ABrutusCharacter::OnFireStarted()
 void ABrutusCharacter::OnFireCompleted()
 {
 	Weapon->StopFire();
+}
+
+void ABrutusCharacter::OnAbilityInputPressed(EBrutusAbilityInput InputId)
+{
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->AbilityLocalInputPressed(static_cast<int32>(InputId));
+	}
+}
+
+void ABrutusCharacter::OnAbilityInputReleased(EBrutusAbilityInput InputId)
+{
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->AbilityLocalInputReleased(static_cast<int32>(InputId));
+	}
 }
 
 bool ABrutusCharacter::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/PlayerState.h"
+#include "Heroes/BrutusHeroRegistry.h"
 #include "BrutusPlayerState.generated.h"
 
 class UAbilitySystemComponent;
@@ -25,6 +26,10 @@ public:
 	uint8 GetTeamId() const { return TeamId; }
 	void SetTeamId(uint8 InTeamId) { TeamId = InTeamId; }
 
+	// Hero the player spawns as (server sets it; see ABrutusGameMode::ChangeHero).
+	EBrutusHero GetSelectedHero() const { return SelectedHero; }
+	void SetSelectedHero(EBrutusHero InHero) { SelectedHero = InHero; }
+
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UAbilitySystemComponent> AbilitySystem;
@@ -34,4 +39,7 @@ private:
 
 	UPROPERTY(Replicated)
 	uint8 TeamId = 0;
+
+	UPROPERTY(Replicated)
+	EBrutusHero SelectedHero = EBrutusHero::Clavus;
 };

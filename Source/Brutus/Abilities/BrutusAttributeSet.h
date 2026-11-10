@@ -29,6 +29,16 @@ public:
 	FGameplayAttributeData MaxHealth;
 	BRUTUS_ATTRIBUTE_ACCESSORS(UBrutusAttributeSet, MaxHealth)
 
+	// Scales the hero's max movement speed (slows < 1). Read by UBrutusMovementComponent::GetMaxSpeed.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MoveSpeedMultiplier, Category = "Modifiers")
+	FGameplayAttributeData MoveSpeedMultiplier;
+	BRUTUS_ATTRIBUTE_ACCESSORS(UBrutusAttributeSet, MoveSpeedMultiplier)
+
+	// Scales incoming damage (UBrutusDamageExecution). 0.7 = takes 30% less damage.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_DamageTakenMultiplier, Category = "Modifiers")
+	FGameplayAttributeData DamageTakenMultiplier;
+	BRUTUS_ATTRIBUTE_ACCESSORS(UBrutusAttributeSet, DamageTakenMultiplier)
+
 	// Server only: fires once when Health reaches 0. ResetOutOfHealth re-arms it after respawn.
 	mutable FBrutusOutOfHealth OnOutOfHealth;
 	void ResetOutOfHealth() { bOutOfHealth = false; }
@@ -43,6 +53,12 @@ protected:
 
 	UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldValue);
+
+	UFUNCTION()
+	void OnRep_MoveSpeedMultiplier(const FGameplayAttributeData& OldValue);
+
+	UFUNCTION()
+	void OnRep_DamageTakenMultiplier(const FGameplayAttributeData& OldValue);
 
 private:
 	bool bOutOfHealth = false;
