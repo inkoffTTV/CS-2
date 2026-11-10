@@ -12,6 +12,8 @@ One script builds them from scratch with Blender's Python API.
 | `Export/SK_Hero_Malleus.fbx` | skeletal mesh + skeleton (28 bones), 4 material slots | 5 444 |
 | `Export/SM_Wpn_Clavus_Nailgun.fbx` | static mesh, pivot at the grip, 5 material slots | 1 928 |
 | `Export/SM_Wpn_Malleus_Hammer.fbx` | static mesh, pivot at the grip, 4 material slots | 996 |
+| `Export/SM_Hero_Clavus_Posed.fbx` | static mesh: Clavus in the relaxed preview pose with the nailgun in hand, one mesh, 12 material slots | 8 292 |
+| `Export/SM_Hero_Malleus_Posed.fbx` | static mesh: Malleus in the relaxed preview pose with the hammer in hand, one mesh, 8 material slots | 6 440 |
 | `Previews/*.png` | Workbench renders: front / side / three-quarter per hero, plus `lineup.png` with a 190/210 cm scale bar | |
 
 The budgets are under 15k triangles per hero and under 4k per weapon. The script checks them.
@@ -34,6 +36,7 @@ Each run checks:
 Flags:
 
 - `--no-render` skips the previews.
+- `--export-posed-static` writes ONLY the two `SM_Hero_*_Posed.fbx` files (no other FBX, no previews) and verifies them. The default run also writes them, but a default run overwrites the skeletal FBX with the +X-facing variant, so to keep the current `--ue-face-y` skeletal files use this flag alone. The posed meshes exist only for the default orientation (facing UE +X); the flag cannot be combined with `--ue-face-y`.
 - `--ue-face-y` builds a variant that faces UE +Y (see *Retargeting* below). It skips the previews and overwrites `Export/` unless you also pass `--export-dir`.
 - `--export-dir DIR` writes the FBX files to another folder.
 
@@ -166,6 +169,19 @@ If the editor uses the *Interchange* import dialog (UE 5.5+), use the same value
 - Create New Materials
 - Generate Lightmap UVs: optional
 - Auto Generate Collision ✗ (cosmetic only)
+
+### Posed static meshes (in-game placeholders)
+
+`SM_Hero_Clavus_Posed.fbx` and `SM_Hero_Malleus_Posed.fbx` are the heroes frozen in exactly the relaxed pose of the previews, with the weapon merged into the same mesh. They are plain static meshes: no armature, no skin weights, the same `M_*` material names, bevels and weighted normals kept. They face UE +X with the hero's right side at UE +Y (the default orientation, not `--ue-face-y`), pivot at the feet centre, Z up, centimetres, feet at z = 0. Use them as placeholders in game until animation is set up; then switch to the `SK_Hero_*` meshes.
+
+| File | Folder | Main asset |
+|---|---|---|
+| `SM_Hero_Clavus_Posed.fbx` | `/Game/Characters/Clavus/` | `/Game/Characters/Clavus/SM_Hero_Clavus_Posed` |
+| `SM_Hero_Malleus_Posed.fbx` | `/Game/Characters/Malleus/` | `/Game/Characters/Malleus/SM_Hero_Malleus_Posed` |
+
+Import as **Static Mesh** with the same settings as the weapons: Combine Meshes ✓, **Convert Scene ✓**, Force Front XAxis ✗, **Import Uniform Scale 1.0**, Import Normals, **Create New Materials**, Auto Generate Collision ✗ (add a capsule on the character instead). Place the mesh component with the same relative location as the skeletal one (`Z = -HalfHeight`) and no rotation.
+
+Verified after re-import: Clavus z 0–199.3 cm, 8 292 triangles; Malleus z 0–210 cm, 6 440 triangles.
 
 ### Wiring the meshes (done in C++ separately)
 
