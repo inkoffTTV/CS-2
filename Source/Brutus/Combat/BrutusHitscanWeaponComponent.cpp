@@ -167,7 +167,7 @@ void UBrutusHitscanWeaponComponent::Server_Fire_Implementation(FVector_NetQuanti
 				AActor* Blocker = BlockHit.GetActor();
 				if (Blocker && Blocker->CanBeDamaged() && !Blocker->IsA<APawn>())
 				{
-					DamageByBlocker.FindOrAdd(Blocker) += Damage;
+					DamageByBlocker.FindOrAdd(TWeakObjectPtr<AActor>(Blocker)) += Damage;
 				}
 			}
 			continue;

@@ -107,7 +107,7 @@ void UBrutusClavusRamAbility::ServerHitCheck()
 	for (TActorIterator<ABrutusCharacter> It(World); It; ++It)
 	{
 		ABrutusCharacter* Target = *It;
-		if (!IsValid(Target) || Target == Hero || HitTargets.Contains(Target))
+		if (!IsValid(Target) || Target == Hero || HitTargets.Contains(TWeakObjectPtr<ABrutusCharacter>(Target)))
 		{
 			continue;
 		}
@@ -126,8 +126,8 @@ void UBrutusClavusRamAbility::ServerHitCheck()
 		{
 			continue; // a wall or a shield between them
 		}
-		HitTargets.Add(Target);
-		Victims.Add(Target);
+		HitTargets.Add(TWeakObjectPtr<ABrutusCharacter>(Target));
+		Victims.Add(TWeakObjectPtr<ABrutusCharacter>(Target));
 	}
 
 	for (const TWeakObjectPtr<ABrutusCharacter>& Weak : Victims)
