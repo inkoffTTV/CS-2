@@ -61,6 +61,7 @@ public:
 	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
 
 	virtual void PostInitializeComponents() override;
+	virtual void BeginPlay() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void UnPossessed() override;
 	virtual void OnRep_PlayerState() override;
@@ -72,6 +73,13 @@ public:
 
 protected:
 	virtual bool CanJumpInternal_Implementation() const override;
+
+	// Posed static placeholder model (Art/Export/SM_Hero_<Name>_Posed.fbx imported into the project).
+	// When the asset exists it replaces every component tagged GreyboxTag; otherwise the greybox stays.
+	UPROPERTY(EditDefaultsOnly, Category = "Hero")
+	FSoftObjectPath PlaceholderMeshPath;
+
+	static const FName GreyboxTag;
 
 	// Scales the greybox cylinder to the current capsule (call after resizing the capsule).
 	void FitBodyMeshToCapsule();
@@ -104,6 +112,11 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> BodyMesh;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UStaticMeshComponent> PlaceholderMesh;
+
+	void ApplyPlaceholderMesh();
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBrutusHitboxComponent> Hitbox;

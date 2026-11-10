@@ -26,6 +26,7 @@ SimTests/run.sh
    - первый: позиция (-2000, -500, 150), в деталях *Player Start Tag* = `Team0`;
    - второй: позиция (2000, 500, 150), *Player Start Tag* = `Team1`.
 5. *Play* → *Number of Players* 2, *Net Mode* — *Play As Listen Server*.
+6. (Необязательно) Временные модели героев: импортировать `Art/Export/SM_Hero_Clavus_Posed.fbx` в `/Game/Characters/Clavus/` и `Art/Export/SM_Hero_Malleus_Posed.fbx` в `/Game/Characters/Malleus/` как Static Mesh (подробно — `Art/README.md`). Игра подхватит их сама; без них остаются серые примитивы.
 
 ## Управление
 

@@ -42,6 +42,14 @@ ABrutusCharacter::ABrutusCharacter(const FObjectInitializer& ObjectInitializer)
 	Camera->bUsePawnControlRotation = false;
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
+	BodyMesh->ComponentTags.Add(GreyboxTag);
+
+	PlaceholderMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderMesh"));
+	PlaceholderMesh->SetupAttachment(GetMesh());
+	PlaceholderMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlaceholderMesh->SetGenerateOverlapEvents(false);
+	PlaceholderMesh->SetCanEverAffectNavigation(false);
+	PlaceholderMesh->SetVisibility(false);
 	// Attached to the skeletal mesh so CMC network smoothing (which offsets it) also moves the body on simulated proxies.
 	BodyMesh->SetupAttachment(GetMesh());
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -202,6 +210,39 @@ void ABrutusCharacter::HandleOutOfHealth(AActor* DamageInstigator)
 	}
 }
 
+const FName ABrutusCharacter::GreyboxTag(TEXT("Greybox"));
+
+void ABrutusCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	ApplyPlaceholderMesh();
+}
+
+void ABrutusCharacter::ApplyPlaceholderMesh()
+{
+	if (PlaceholderMeshPath.IsNull())
+	{
+		return;
+	}
+	// Quiet load: until the author imports the FBX, a missing asset is expected, not an error.
+	UStaticMesh* Model = LoadObject<UStaticMesh>(nullptr, *PlaceholderMeshPath.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!Model)
+	{
+		return;
+	}
+	PlaceholderMesh->SetStaticMesh(Model);
+	PlaceholderMesh->SetVisibility(true);
+
+	TInlineComponentArray<UStaticMeshComponent*> Parts(this);
+	for (UStaticMeshComponent* Part : Parts)
+	{
+		if (Part->ComponentHasTag(GreyboxTag))
+		{
+			Part->SetVisibility(false);
+		}
+	}
+}
+
 void ABrutusCharacter::FitBodyMeshToCapsule()
 {
 	// Engine cylinder is 100 x 100 x 100 cm, centred on its pivot.
@@ -212,6 +253,8 @@ void ABrutusCharacter::FitBodyMeshToCapsule()
 	// ACharacter shifts the skeletal mesh relative to the capsule (base offset, crouch half-height adjust);
 	// cancel that shift so the cylinder stays centred on the capsule. The mesh has no rotation or scale here.
 	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z));
+	// The placeholder model's pivot is at its feet: keep it on the capsule bottom (standing pose even when crouched).
+	PlaceholderMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetMesh()->GetRelativeLocation().Z - HalfHeight));
 }
 
 void ABrutusCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
