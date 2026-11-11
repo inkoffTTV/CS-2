@@ -1,0 +1,36 @@
+; BRUTUS — Godot 4.7 project
+config_version=5
+
+[application]
+
+config/name="BRUTUS"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[autoload]
+
+NetworkTime="*res://addons/netfox/network-time.gd"
+NetworkTimeSynchronizer="*res://addons/netfox/network-time-synchronizer.gd"
+NetworkRollback="*res://addons/netfox/rollback/network-rollback.gd"
+NetworkEvents="*res://addons/netfox/network-events.gd"
+NetworkPerformance="*res://addons/netfox/network-performance.gd"
+RollbackSimulationServer="*res://addons/netfox/servers/rollback-simulation-server.gd"
+NetworkHistoryServer="*res://addons/netfox/servers/network-history-server.gd"
+NetworkSynchronizationServer="*res://addons/netfox/servers/network-synchronization-server.gd"
+NetworkIdentityServer="*res://addons/netfox/servers/network-identity-server.gd"
+NetworkCommandServer="*res://addons/netfox/servers/network-command-server.gd"
+RollbackLivenessServer="*res://addons/netfox/servers/rollback-liveness-server.gd"
+InterpolationServer="*res://addons/netfox/servers/interpolation-server.gd"
+NetworkSimulator="*res://addons/netfox.extras/network-simulator.gd"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/netfox/plugin.cfg", "res://addons/netfox.internals/plugin.cfg", "res://addons/netfox.extras/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

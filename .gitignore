@@ -15,3 +15,7 @@ RobloxAssets/
 
 # Blender scratch
 Art/_scratch/
+# Godot
+.godot/
+*.translation
+export_presets.cfg.bak
