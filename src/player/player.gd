@@ -37,6 +37,8 @@ var prev_buttons: int = 0
 var crouched: bool = false  # short capsule (sliding or crouch-walking)
 
 var _pressed: int = 0
+var _tick: int = 0
+var _emitted: Dictionary[String, int] = {}  # "tick:kind" -> tick, to report each event once
 var _shape: CapsuleShape3D
 var _shape_node: CollisionShape3D
 
@@ -81,7 +83,8 @@ func is_crouched() -> bool:
 	return crouched
 
 
-func _rollback_tick(dt: float, _tick: int, is_fresh: bool) -> void:
+func _rollback_tick(dt: float, tick: int, is_fresh: bool) -> void:
+	_tick = tick
 	rotation = Vector3(0.0, input.look_yaw, 0.0)
 	var held: int = input.buttons()
 	_pressed = held & ~prev_buttons
@@ -176,8 +179,13 @@ func _step_walk(dt: float, grounded: bool, wish: Vector3) -> void:
 
 func _step_slide(dt: float) -> void:
 	var n: Vector3 = get_floor_normal() if is_on_floor() else Vector3.UP
-	velocity = BMoveRules.step_slide(velocity, n, dt, move_cfg)
+	var slide_v: Vector3 = BMoveRules.step_slide(velocity, n, dt, move_cfg)
+	velocity = slide_v
 	_move()
+	# On the floor move_and_slide() drops the downhill (vertical) part of the velocity; the slide keeps
+	# its in-plane speed unless it hit a wall.
+	if is_on_floor() and not is_on_wall():
+		velocity = slide_v
 	if not is_on_floor() or not input.slide or BMoveRules.should_exit_slide(velocity, move_cfg):
 		mode = Mode.MOVE
 
@@ -275,6 +283,18 @@ func _apply_shape(short: bool) -> void:
 	_shape_node.position = Vector3(0.0, h * 0.5, 0.0)
 
 
-func _emit(kind: StringName, is_fresh: bool) -> void:
-	if is_fresh:
-		movement_event.emit(kind)
+## Reports a movement event once per tick, and only from a tick simulated with the real input:
+## the server may first run a tick with the last known (stale) input and re-run it when the input
+## arrives, so is_fresh alone would miss events or report ones that never happened.
+func _emit(kind: StringName, _is_fresh: bool) -> void:
+	if rollback.is_predicting():
+		return
+	var key: String = "%d:%s" % [_tick, kind]
+	if _emitted.has(key):
+		return
+	_emitted[key] = _tick
+	if _emitted.size() > 64:
+		for k: String in _emitted.keys():
+			if _emitted[k] < _tick - 64:
+				_emitted.erase(k)
+	movement_event.emit(kind)

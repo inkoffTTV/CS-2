@@ -3,6 +3,7 @@ extends RefCounted
 ## Scripted inputs for headless test clients (--bot [moves|zipline]).
 ##  moves:   run toward the Rubicon, slide, turn, dash, jump + double jump, run on.
 ##  zipline: walk to the 30 degree ramp, climb onto the platform, grab the zipline, ride it to the end.
+##  ramp:    walk up the free-standing 20 degree ramp, turn round and slide down it.
 
 const ARRIVE_DIST: float = 0.8
 
@@ -23,7 +24,10 @@ func _init(p_scenario: String, player: BPlayer) -> void:
 	if player.position.x > 0.0:  # not in the tree yet; the players root sits at the origin
 		_waypoints.append(Vector2(5, 9))  # Populares cross the Rubicon through the +Z passage
 		_waypoints.append(Vector2(-5, 9))
-	_waypoints.append_array([Vector2(-6, 25), Vector2(-21, 25), Vector2(-25, 25)])
+	if scenario == "ramp":
+		_waypoints.append_array([Vector2(-24, -20), Vector2(-24, -26), Vector2(-9.5, -26)])
+	else:
+		_waypoints.append_array([Vector2(-6, 25), Vector2(-21, 25), Vector2(-25, 25)])
 
 
 func elapsed() -> float:
@@ -41,6 +45,8 @@ func fill(input: BPlayerInput) -> void:
 	input.fire = false
 	if scenario == "zipline":
 		_zipline(input, elapsed())
+	elif scenario == "ramp":
+		_ramp(input, elapsed())
 	else:
 		_moves(input, elapsed())
 
@@ -81,6 +87,25 @@ func _zipline(input: BPlayerInput, t: float) -> void:
 	if t - _arrived_at > 0.3:
 		input.interact = true
 		_grabbed = true
+
+
+func _ramp(input: BPlayerInput, t: float) -> void:
+	var pos := Vector2(_player.global_position.x, _player.global_position.z)
+	if t < 0.5:
+		return
+	if _wp < _waypoints.size():
+		var target: Vector2 = _waypoints[_wp]
+		if pos.distance_to(target) < ARRIVE_DIST:
+			_wp += 1
+		input.set_look(_yaw_toward(target - pos), 0.0)
+		input.move = Vector2(0, 1)
+		return
+	# At the top: run back down toward -X and hold slide once moving.
+	if _arrived_at < 0.0:
+		_arrived_at = t
+	input.set_look(_yaw_toward(Vector2(-1, 0)), 0.0)
+	input.move = Vector2(0, 1)
+	input.slide = t - _arrived_at > 0.35
 
 
 static func _yaw_toward(dir: Vector2) -> float:

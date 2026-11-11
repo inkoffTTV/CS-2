@@ -28,7 +28,7 @@ godot --headless --path . -- --server            # порт 7777
 godot --headless --path . -- --server --port 7000
 ```
 
-`godot` — путь к исполняемому файлу Godot (на Windows, например, `Godot_v4.7.2-stable_win64_console.exe`), команда выполняется в папке репозитория. Сервер без окна и без своего игрока; игроки подключаются через *Join*. Другие ключи командной строки (после `--`): `--host`, `--connect IP[:PORT]`, `--name NICK`, `--port N`, `--quit-after SEC`, `--bot [moves|zipline]`, `--screenshot PATH [--shot-view player|overview|base0|base1|zipline] [--shot-delay SEC]` — описаны в `src/net/session.gd`.
+`godot` — путь к исполняемому файлу Godot (на Windows, например, `Godot_v4.7.2-stable_win64_console.exe`), команда выполняется в папке репозитория. Сервер без окна и без своего игрока; игроки подключаются через *Join*. Другие ключи командной строки (после `--`): `--host`, `--connect IP[:PORT]`, `--name NICK`, `--port N`, `--quit-after SEC`, `--bot [moves|zipline|ramp]`, `--screenshot PATH [--shot-view player|overview|base0|base1|zipline] [--shot-delay SEC]` — описаны в `src/net/session.gd`.
 
 ## Тесты и проверки
 

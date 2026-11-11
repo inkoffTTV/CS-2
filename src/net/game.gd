@@ -2,7 +2,7 @@ class_name BGame
 extends Node3D
 ## The match scene: arena, players, spawner and HUD. Starts networking from Session on load.
 
-const POS_LOG_INTERVAL: float = 1.0
+const POS_LOG_INTERVAL: float = 0.5
 
 @onready var spawner: BPlayerSpawner = $PlayerSpawner as BPlayerSpawner
 @onready var hud: BHud = $HUD as BHud
@@ -73,8 +73,9 @@ func _log_positions() -> void:
 			_first_pos[p.peer_id] = p.global_position
 		var moved: float = p.global_position.distance_to(_first_pos[p.peer_id])
 		_max_moved[p.peer_id] = maxf(moved, _max_moved.get(p.peer_id, 0.0))
-		BLog.info(multiplayer, "POS peer=%d pos=(%.2f, %.2f, %.2f) moved=%.2f mode=%d stamina=%.2f" % [p.peer_id,
-			p.global_position.x, p.global_position.y, p.global_position.z, moved, p.mode, p.stamina])
+		BLog.info(multiplayer, "POS peer=%d pos=(%.2f, %.2f, %.2f) moved=%.2f speed=%.2f mode=%d stamina=%.2f" % [
+			p.peer_id, p.global_position.x, p.global_position.y, p.global_position.z, moved, p.velocity.length(), p.mode,
+			p.stamina])
 
 
 func _on_server_lost() -> void:
