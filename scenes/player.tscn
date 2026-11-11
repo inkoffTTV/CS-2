@@ -1,0 +1,28 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://src/player/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://src/player/player_input.gd" id="2_input"]
+[ext_resource type="Script" path="res://src/player/player_visual.gd" id="3_visual"]
+[ext_resource type="Script" path="res://addons/netfox/rollback/rollback-synchronizer.gd" id="4_rbs"]
+[ext_resource type="Script" path="res://addons/netfox/tick-interpolator.gd" id="5_ti"]
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_player")
+
+[node name="Input" type="Node" parent="."]
+script = ExtResource("2_input")
+
+[node name="Visual" type="Node3D" parent="."]
+script = ExtResource("3_visual")
+
+[node name="RollbackSynchronizer" type="Node" parent="." node_paths=PackedStringArray("root")]
+script = ExtResource("4_rbs")
+root = NodePath("..")
+state_properties = Array[String]([":transform", ":velocity", ":stamina", ":dash_left", ":air_jumps", ":mode", ":zip_index", ":zip_dir", ":prev_buttons"])
+input_properties = Array[String](["Input:move", "Input:look_yaw", "Input:look_pitch", "Input:jump", "Input:dash", "Input:slide", "Input:interact", "Input:fire"])
+enable_input_broadcast = false
+
+[node name="TickInterpolator" type="Node" parent="." node_paths=PackedStringArray("root")]
+script = ExtResource("5_ti")
+root = NodePath("..")
+properties = Array[String]([":transform"])
