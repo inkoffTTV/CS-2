@@ -1,11 +1,15 @@
 class_name BHud
 extends CanvasLayer
-## In-game HUD: crosshair, stamina pips, ping, team name in team colour, movement readout,
-## player list, connection status and the Esc menu.
+## In-game HUD: crosshair with hit marker, health bar, stamina pips, ping, team name in team colour,
+## movement readout, kill feed, player list, death / respawn countdown, connection status, Esc menu.
 
 var _player: BPlayer
 var _crosshair: BCrosshair
 var _stamina: BStaminaBar
+var _health: BHealthBar
+var _kill_feed: BKillFeed
+var _death_label: Label
+var _killed_by: String = ""
 var _team_label: Label
 var _nick_label: Label
 var _ping_label: Label
@@ -51,21 +55,44 @@ func _ready() -> void:
 	_stamina.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_stamina.visible = false
 	bottom.add_child(_stamina)
+	_health = BHealthBar.new()
+	_health.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_health.visible = false
+	bottom.add_child(_health)
+
+	var right := VBoxContainer.new()
+	right.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	right.offset_left = -420
+	right.offset_right = -20
+	right.offset_top = 18
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right.add_theme_constant_override("separation", 14)
+	root.add_child(right)
+	_kill_feed = BKillFeed.new()
+	right.add_child(_kill_feed)
 
 	_list_label = RichTextLabel.new()
 	_list_label.bbcode_enabled = true
 	_list_label.fit_content = true
 	_list_label.scroll_active = false
 	_list_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_list_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_list_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_list_label.offset_left = -260
-	_list_label.offset_right = -20
-	_list_label.offset_top = 18
 	_list_label.add_theme_font_size_override("normal_font_size", 16)
 	_list_label.add_theme_constant_override("outline_size", 4)
 	_list_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	root.add_child(_list_label)
+	right.add_child(_list_label)
+
+	_death_label = Label.new()
+	_death_label.set_anchors_preset(Control.PRESET_CENTER)
+	_death_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_death_label.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_death_label.offset_top = -120
+	_death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_death_label.add_theme_font_size_override("font_size", 30)
+	_death_label.add_theme_constant_override("outline_size", 8)
+	_death_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_death_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.8))
+	root.add_child(_death_label)
 
 	_status_label = Label.new()
 	_status_label.set_anchors_preset(Control.PRESET_CENTER)
@@ -101,6 +128,24 @@ func bind(player: BPlayer) -> void:
 	_nick_label.text = player.nick
 	_stamina.color = c.lerp(Color.WHITE, 0.35)
 	_stamina.max_charges = BPlayer.stamina_cfg.max_charges
+	_health.visible = true
+	_health.max_health = player.health.max_health
+	_health.health = player.health.health
+	player.weapon.hit_confirmed.connect(func(head: bool, _dmg: float, killed: bool) -> void:
+		_crosshair.show_hit(head, killed))
+
+
+## Connects the match-wide kill events (called by the game once).
+func bind_combat(combat: BCombat) -> void:
+	combat.kill.connect(_on_kill)
+
+
+func _on_kill(killer: int, killer_nick: String, killer_team: int, victim: int, victim_nick: String,
+		victim_team: int) -> void:
+	var me: int = multiplayer.get_unique_id()
+	_kill_feed.add_kill(killer_nick, killer_team, victim_nick, victim_team, killer == me or victim == me)
+	if victim == me:
+		_killed_by = killer_nick
 
 
 func set_status(text: String) -> void:
@@ -115,6 +160,8 @@ func _process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
 	_stamina.charges = _player.stamina
+	_health.health = _player.health.health
+	_update_death()
 	var mp: MultiplayerAPI = _player.multiplayer
 	if mp.is_server():
 		_ping_label.text = "Host" if not Session.dedicated else ""
@@ -130,6 +177,16 @@ func _process(delta: float) -> void:
 	if _player.is_dashing():
 		state = "DASH"
 	_move_label.text = "%.1f m/s  %s" % [speed, state]
+
+
+func _update_death() -> void:
+	if not _player.health.is_dead():
+		_death_label.text = ""
+		_crosshair.visible = true
+		return
+	_crosshair.visible = false
+	var by: String = "KILLED BY %s" % _killed_by if not _killed_by.is_empty() else "YOU DIED"
+	_death_label.text = "%s\nRespawn in %.1f s" % [by, _player.health.respawn_in()]
 
 
 func _refresh_list() -> void:

@@ -8,7 +8,8 @@ extends Node
 ##   --connect IP[:PORT] join a server
 ##   --port N            port for --server / --host (default 7777)
 ##   --name NICK         nickname
-##   --bot [SCENARIO]    scripted inputs: moves (default) | zipline | ramp; implies --connect if no mode given
+##   --bot [SCENARIO]    scripted inputs: moves (default) | zipline | ramp | shooter | target;
+##                       implies --connect if no mode given
 ##   --quit-after SEC    quit after SEC seconds (tests)
 ##   --screenshot PATH   host locally, spawn, save a PNG to PATH after a few frames, quit
 ##   --shot-view NAME    screenshot camera: player (default) | overview | base0 | base1 | zipline

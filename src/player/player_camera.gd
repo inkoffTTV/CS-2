@@ -39,6 +39,11 @@ func setup(player: BPlayer) -> void:
 	_follow(0.0)
 
 
+## Camera position relative to the pivot for a look (without the spring arm pulled in by walls).
+static func arm_offset(yaw: float, pitch: float) -> Vector3:
+	return Basis(Vector3.UP, yaw) * (Basis(Vector3.RIGHT, pitch) * Vector3(SHOULDER, 0.0, ARM_LENGTH))
+
+
 func get_camera() -> Camera3D:
 	return _camera
 

@@ -33,6 +33,16 @@ var bot: BBotBrain = null
 var _latched: int = 0
 
 
+## Replaces BaseNetInput._ready(): its lambda keeps firing for a despawned (out-of-tree) node.
+func _ready() -> void:
+	NetworkTime.before_tick_loop.connect(_on_before_tick_loop)
+
+
+func _on_before_tick_loop() -> void:
+	if is_inside_tree() and is_multiplayer_authority():
+		_gather()
+
+
 func buttons() -> int:
 	return (JUMP if jump else 0) | (DASH if dash else 0) | (SLIDE if slide else 0) \
 		| (INTERACT if interact else 0) | (FIRE if fire else 0)
@@ -43,6 +53,13 @@ func set_look(yaw: float, pitch: float) -> void:
 	look_pitch = pitch
 	live_yaw = yaw
 	live_pitch = pitch
+
+
+## Trigger held right now (the weapon fires from _process, not per tick).
+func fire_held() -> bool:
+	if bot != null:
+		return fire
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_action_pressed("fire")
 
 
 func is_local() -> bool:

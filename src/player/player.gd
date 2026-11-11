@@ -3,6 +3,8 @@ extends CharacterBody3D
 ## A hero driven inside the netfox rollback loop: the owning client predicts its own movement,
 ## the server simulates authoritatively and corrects it. Everything that affects the next tick
 ## (transform, velocity, stamina, dash timer, air jumps, mode, zipline, last buttons) is rollback state.
+## Health lives in $Health (server-authoritative, not rolled back); a dead hero is frozen and hidden,
+## and the respawn teleport happens inside the rollback tick so resimulation replays it.
 
 enum Mode { MOVE = 0, SLIDE = 1, ZIPLINE = 2 }
 
@@ -15,6 +17,7 @@ const CENTER_HEIGHT: float = 0.9  # capsule centre above the feet when standing
 const FLOOR_SNAP: float = 0.35
 const WORLD_MASK: int = 1
 const PLAYER_LAYER: int = 2
+const EYE_BELOW_TOP: float = 0.2
 
 static var walk_cfg: BWalkConfig = BWalkConfig.new()
 static var move_cfg: BMoveConfig = BMoveConfig.new()
@@ -35,15 +38,20 @@ var zip_index: int = -1
 var zip_dir: int = 1
 var prev_buttons: int = 0
 var crouched: bool = false  # short capsule (sliding or crouch-walking)
+var respawn_seen: int = -1  # the respawn tick (BHealth.respawn_tick) this state already teleported for
 
 var _pressed: int = 0
 var _tick: int = 0
 var _emitted: Dictionary[String, int] = {}  # "tick:kind" -> tick, to report each event once
 var _shape: CapsuleShape3D
 var _shape_node: CollisionShape3D
+var _look_reset_for: int = -1
 
 @onready var input: BPlayerInput = $Input as BPlayerInput
 @onready var rollback: RollbackSynchronizer = $RollbackSynchronizer as RollbackSynchronizer
+@onready var health: BHealth = $Health as BHealth
+@onready var weapon: BWeapon = $Weapon as BWeapon
+@onready var _visual: BPlayerVisual = $Visual as BPlayerVisual
 
 
 func _ready() -> void:
@@ -58,7 +66,7 @@ func _ready() -> void:
 	_shape_node.shape = _shape
 	add_child(_shape_node)
 	_apply_shape(false)
-	($Visual as BPlayerVisual).setup(self)
+	_visual.setup(self)
 	movement_event.connect(_log_event)
 
 
@@ -83,8 +91,48 @@ func is_crouched() -> bool:
 	return crouched
 
 
+## Dead, or respawned on the server but this state has not reached the respawn tick yet.
+func is_down() -> bool:
+	return health.is_dead() or respawn_seen < health.respawn_tick
+
+
+func height() -> float:
+	return CROUCH_HEIGHT if crouched else STAND_HEIGHT
+
+
+func eye_position() -> Vector3:
+	return global_position + Vector3(0.0, height() - EYE_BELOW_TOP, 0.0)
+
+
+## Where tracers start: the gun at the right hip/shoulder of the model.
+func muzzle_position() -> Vector3:
+	return global_position + global_basis * Vector3(0.32, height() * 0.72, -0.55)
+
+
+func look_dir() -> Vector3:
+	var p: float = input.live_pitch
+	return Vector3(-sin(input.live_yaw) * cos(p), sin(p), -cos(input.live_yaw) * cos(p))
+
+
+func hitboxes() -> Array[BCapsule]:
+	return BHitboxes.build(global_position, height(), RADIUS)
+
+
+func _process(_delta: float) -> void:
+	var down: bool = is_down()
+	collision_layer = 0 if down else PLAYER_LAYER
+	_visual.visible = not down
+	if is_local() and input.bot == null and health.respawn_tick > _look_reset_for:
+		_look_reset_for = health.respawn_tick  # face the Rubicon again after a respawn
+		input.set_look(health.respawn_xform.basis.get_euler().y, 0.0)
+
+
 func _rollback_tick(dt: float, tick: int, is_fresh: bool) -> void:
 	_tick = tick
+	if health.respawn_tick > respawn_seen and tick >= health.respawn_tick:
+		_respawn()
+	if health.is_dead_at(tick):
+		return
 	rotation = Vector3(0.0, input.look_yaw, 0.0)
 	var held: int = input.buttons()
 	_pressed = held & ~prev_buttons
@@ -258,6 +306,19 @@ func _tick_zipline(dt: float) -> bool:
 func _leave_zipline() -> void:
 	mode = Mode.MOVE
 	zip_index = -1
+
+
+func _respawn() -> void:
+	transform = health.respawn_xform
+	velocity = Vector3.ZERO
+	stamina = float(stamina_cfg.max_charges)
+	dash_left = 0.0
+	air_jumps = 0
+	mode = Mode.MOVE
+	zip_index = -1
+	prev_buttons = input.buttons()
+	respawn_seen = health.respawn_tick
+	_apply_shape(false)
 
 
 # --- helpers ---------------------------------------------------------------------------------

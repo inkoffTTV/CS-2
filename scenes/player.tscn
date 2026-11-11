@@ -1,10 +1,26 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://src/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://src/player/player_input.gd" id="2_input"]
 [ext_resource type="Script" path="res://src/player/player_visual.gd" id="3_visual"]
 [ext_resource type="Script" path="res://addons/netfox/rollback/rollback-synchronizer.gd" id="4_rbs"]
 [ext_resource type="Script" path="res://addons/netfox/tick-interpolator.gd" id="5_ti"]
+[ext_resource type="Script" path="res://src/combat/health.gd" id="6_health"]
+[ext_resource type="Script" path="res://src/combat/weapon.gd" id="7_weapon"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_health"]
+properties/0/path = NodePath(".:health")
+properties/0/spawn = true
+properties/0/replication_mode = 2
+properties/1/path = NodePath(".:death_tick")
+properties/1/spawn = true
+properties/1/replication_mode = 2
+properties/2/path = NodePath(".:respawn_tick")
+properties/2/spawn = true
+properties/2/replication_mode = 2
+properties/3/path = NodePath(".:respawn_xform")
+properties/3/spawn = true
+properties/3/replication_mode = 2
 
 [node name="Player" type="CharacterBody3D"]
 script = ExtResource("1_player")
@@ -18,7 +34,7 @@ script = ExtResource("3_visual")
 [node name="RollbackSynchronizer" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("4_rbs")
 root = NodePath("..")
-state_properties = Array[String]([":transform", ":velocity", ":stamina", ":dash_left", ":air_jumps", ":mode", ":zip_index", ":zip_dir", ":prev_buttons", ":crouched"])
+state_properties = Array[String]([":transform", ":velocity", ":stamina", ":dash_left", ":air_jumps", ":mode", ":zip_index", ":zip_dir", ":prev_buttons", ":crouched", ":respawn_seen"])
 input_properties = Array[String](["Input:move", "Input:look_yaw", "Input:look_pitch", "Input:jump", "Input:dash", "Input:slide", "Input:interact", "Input:fire"])
 enable_input_broadcast = false
 
@@ -26,3 +42,13 @@ enable_input_broadcast = false
 script = ExtResource("5_ti")
 root = NodePath("..")
 properties = Array[String]([":transform"])
+
+[node name="Health" type="Node" parent="."]
+script = ExtResource("6_health")
+
+[node name="HealthSync" type="MultiplayerSynchronizer" parent="Health"]
+root_path = NodePath("..")
+replication_config = SubResource("SceneReplicationConfig_health")
+
+[node name="Weapon" type="Node" parent="."]
+script = ExtResource("7_weapon")

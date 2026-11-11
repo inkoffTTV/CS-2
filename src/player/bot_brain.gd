@@ -1,9 +1,10 @@
 class_name BBotBrain
 extends RefCounted
-## Scripted inputs for headless test clients (--bot [moves|zipline]).
+## Scripted inputs for headless test clients (--bot [moves|zipline|ramp|shooter|target]).
 ##  moves:   run toward the Rubicon, slide, turn, dash, jump + double jump, run on.
 ##  zipline: walk to the 30 degree ramp, climb onto the platform, grab the zipline, ride it to the end.
 ##  ramp:    walk up the free-standing 20 degree ramp, turn round and slide down it.
+##  shooter, target: combat bots, see BBotCombat.
 
 const ARRIVE_DIST: float = 0.8
 
@@ -15,12 +16,16 @@ var _waypoints: Array[Vector2] = []
 var _wp: int = 0
 var _arrived_at: float = -1.0
 var _grabbed: bool = false
+var _combat: BBotCombat
 
 
 func _init(p_scenario: String, player: BPlayer) -> void:
 	scenario = p_scenario
 	_player = player
 	_spawn_yaw = player.rotation.y
+	if scenario == "shooter" or scenario == "target":
+		_combat = BBotCombat.new(scenario, player)
+		return
 	if player.position.x > 0.0:  # not in the tree yet; the players root sits at the origin
 		_waypoints.append(Vector2(5, 9))  # Populares cross the Rubicon through the +Z passage
 		_waypoints.append(Vector2(-5, 9))
@@ -43,7 +48,9 @@ func fill(input: BPlayerInput) -> void:
 	input.slide = false
 	input.interact = false
 	input.fire = false
-	if scenario == "zipline":
+	if _combat != null:
+		_combat.fill(input, elapsed())
+	elif scenario == "zipline":
 		_zipline(input, elapsed())
 	elif scenario == "ramp":
 		_ramp(input, elapsed())
@@ -75,7 +82,7 @@ func _zipline(input: BPlayerInput, t: float) -> void:
 		var target: Vector2 = _waypoints[_wp]
 		if pos.distance_to(target) < ARRIVE_DIST:
 			_wp += 1
-		input.set_look(_yaw_toward(target - pos), 0.0)
+		input.set_look(yaw_toward(target - pos), 0.0)
 		input.move = Vector2(0, 1)
 		return
 	if _grabbed:
@@ -83,7 +90,7 @@ func _zipline(input: BPlayerInput, t: float) -> void:
 	if _arrived_at < 0.0:
 		_arrived_at = t
 	var to_end: Vector3 = BArena.ZIPLINE_B - _player.global_position
-	input.set_look(_yaw_toward(Vector2(to_end.x, to_end.z)), 0.0)
+	input.set_look(yaw_toward(Vector2(to_end.x, to_end.z)), 0.0)
 	if t - _arrived_at > 0.3:
 		input.interact = true
 		_grabbed = true
@@ -97,16 +104,16 @@ func _ramp(input: BPlayerInput, t: float) -> void:
 		var target: Vector2 = _waypoints[_wp]
 		if pos.distance_to(target) < ARRIVE_DIST:
 			_wp += 1
-		input.set_look(_yaw_toward(target - pos), 0.0)
+		input.set_look(yaw_toward(target - pos), 0.0)
 		input.move = Vector2(0, 1)
 		return
 	# At the top: run back down toward -X and hold slide once moving.
 	if _arrived_at < 0.0:
 		_arrived_at = t
-	input.set_look(_yaw_toward(Vector2(-1, 0)), 0.0)
+	input.set_look(yaw_toward(Vector2(-1, 0)), 0.0)
 	input.move = Vector2(0, 1)
 	input.slide = t - _arrived_at > 0.35
 
 
-static func _yaw_toward(dir: Vector2) -> float:
+static func yaw_toward(dir: Vector2) -> float:
 	return atan2(-dir.x, -dir.y)

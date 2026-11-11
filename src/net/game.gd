@@ -7,6 +7,7 @@ const POS_LOG_INTERVAL: float = 0.5
 @onready var spawner: BPlayerSpawner = $PlayerSpawner as BPlayerSpawner
 @onready var hud: BHud = $HUD as BHud
 @onready var arena: BArena = $Arena as BArena
+@onready var combat: BCombat = $Combat as BCombat
 
 var local_player: BPlayer
 var _camera: BPlayerCamera
@@ -17,6 +18,7 @@ var _max_moved: Dictionary[int, float] = {}
 
 func _ready() -> void:
 	add_child(BRollbackCatchUp.new())
+	hud.bind_combat(combat)
 	spawner.local_player_spawned.connect(_on_local_player)
 	multiplayer.server_disconnected.connect(_on_server_lost)
 	multiplayer.connection_failed.connect(_on_connection_failed)
