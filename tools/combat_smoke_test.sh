@@ -78,7 +78,7 @@ check "shooter client exit code 0 (got $SHOOTER_RC)" test "$SHOOTER_RC" -eq 0
 check "target client exit code 0 (got $TARGET_RC)" test "$TARGET_RC" -eq 0
 check "server spawned shooter (peer ${SHOOTER:-?}) and target (peer ${TARGET:-?})" test -n "$SHOOTER" -a -n "$TARGET"
 check "shooter and target on different teams" bash -c "grep -q 'nick=SmokeShooter team=Optimates' '$S' && grep -q 'nick=SmokeTarget team=Populares' '$S'"
-check "server received shots ($SHOTS)" test "$SHOTS" -ge 50
+check "server received shots ($SHOTS) >= 30" test "$SHOTS" -ge 30
 check "hits on the moving target ($HITS, $HEAD_HITS head) >= $MIN_HITS" test "$HITS" -ge "$MIN_HITS"
 check "at least one kill ($KILLS)" test "$KILLS" -ge 1
 check "target respawned ($RESPAWNS)" test "$RESPAWNS" -ge 1

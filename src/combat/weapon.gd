@@ -9,8 +9,8 @@ extends Node
 
 signal hit_confirmed(head: bool, damage: float, killed: bool)
 
-const TRACER_LOCAL := Color(1.0, 0.85, 0.35)
-const TRACER_REMOTE := Color(1.0, 0.55, 0.25)
+const TRACER_LOCAL := Color(1.0, 0.86, 0.3)
+const TRACER_REMOTE := Color(1.0, 0.45, 0.2)
 const RPC_CHANNEL: int = 1
 
 var cfg := BWeaponConfig.new()
@@ -27,7 +27,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if not _player.is_local():
+	if not _player.is_local() or not BLog.connected(multiplayer):
 		return
 	if _player.is_down() or not _player.input.fire_held():
 		_cooldown = maxf(0.0, _cooldown - delta)  # no banking shots while idle

@@ -66,6 +66,11 @@ func is_local() -> bool:
 	return is_multiplayer_authority() and multiplayer.has_multiplayer_peer()
 
 
+func _process(_delta: float) -> void:
+	if bot != null and BLog.connected(multiplayer) and is_local():
+		bot.frame(self)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if bot != null or not is_local():
 		return

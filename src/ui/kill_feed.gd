@@ -17,7 +17,10 @@ func add_kill(killer_nick: String, killer_team: int, victim_nick: String, victim
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.55, 0.08, 0.05, 0.55) if mine else Color(0, 0, 0, 0.45)
+	box.bg_color = Color(0.05, 0.05, 0.08, 0.6)
+	if mine:  # involves the local player: a light frame
+		box.set_border_width_all(2)
+		box.border_color = Color(1.0, 0.95, 0.85, 0.85)
 	box.content_margin_left = 10
 	box.content_margin_right = 10
 	box.content_margin_top = 3

@@ -11,7 +11,7 @@ const ARRIVE_DIST: float = 0.8
 const STRAFE_PERIOD: float = 1.2
 const ENGAGE_RANGE: float = 60.0
 const AIM_HEIGHT: float = 1.2
-const POST := Vector2(6, 9)  # mirrored in X by the side
+const POST := Vector2(3, 9)  # mirrored in X by the side
 const LANE: Array[Vector2] = [Vector2(10, 2), Vector2(10, 16)]
 
 var _scenario: String
@@ -20,6 +20,7 @@ var _side: float = -1.0  # -1: Optimates half (-X), +1: Populares half
 var _route: Array[Vector2] = []
 var _wp: int = 0
 var _planned_for: int = -2  # respawn tick the route was planned for
+var _aim_at: BPlayer = null
 
 
 func _init(scenario: String, player: BPlayer) -> void:
@@ -38,6 +39,16 @@ func fill(input: BPlayerInput, t: float) -> void:
 		_shooter(input, t)
 	else:
 		_target(input)
+
+
+## Every frame: keep the crosshair on the enemy as it is drawn now (the camera and the weapon use
+## the live look; the tick input keeps the look from the last tick).
+func frame(input: BPlayerInput, t: float) -> void:
+	if _aim_at == null or not is_instance_valid(_aim_at) or _aim_at.is_down() or _player.is_down():
+		return
+	var look: Vector2 = _aim_angles(_aim_at, t, Vector2(input.live_yaw, input.live_pitch))
+	input.live_yaw = look.x
+	input.live_pitch = look.y
 
 
 func _plan() -> void:
@@ -79,8 +90,10 @@ func _shooter(input: BPlayerInput, t: float) -> void:
 		var strafe_sign: float = 1.0 if int(t / STRAFE_PERIOD) % 2 == 0 else -1.0
 		move_world = Vector2(-to.y, to.x).normalized() * strafe_sign
 
-	if enemy != null and _in_sight(enemy):
-		_aim(input, enemy, t)
+	_aim_at = enemy if enemy != null and _in_sight(enemy) else null
+	if _aim_at != null:
+		var look: Vector2 = _aim_angles(enemy, t, Vector2(input.look_yaw, input.look_pitch))
+		input.set_look(look.x, look.y)
 		input.fire = true
 	elif move_world != Vector2.ZERO:
 		input.set_look(BBotBrain.yaw_toward(move_world), 0.0)
@@ -89,18 +102,18 @@ func _shooter(input: BPlayerInput, t: float) -> void:
 	input.move = _to_local(move_world, input.look_yaw)
 
 
-## Look angles that put the over-the-shoulder camera's crosshair on the enemy (fixed-point
-## iteration, since the camera position depends on the look).
-func _aim(input: BPlayerInput, enemy: BPlayer, t: float) -> void:
+## (yaw, pitch) that put the over-the-shoulder camera's crosshair on the enemy (fixed-point
+## iteration from the current look, since the camera position depends on the look).
+func _aim_angles(enemy: BPlayer, t: float, look: Vector2) -> Vector2:
 	var point: Vector3 = enemy.global_position + Vector3(0.15 * sin(t * 3.1), AIM_HEIGHT + 0.3 * sin(t * 2.3), 0.0)
 	var pivot: Vector3 = _player.global_position + Vector3(0.0, BPlayerCamera.PIVOT_STAND, 0.0)
-	var yaw: float = input.look_yaw
-	var pitch: float = input.look_pitch
+	var yaw: float = look.x
+	var pitch: float = look.y
 	for i in 4:
 		var d: Vector3 = point - (pivot + BPlayerCamera.arm_offset(yaw, pitch))
 		yaw = atan2(-d.x, -d.z)
 		pitch = atan2(d.y, Vector2(d.x, d.z).length())
-	input.set_look(yaw, clampf(pitch, -BPlayerInput.PITCH_LIMIT, BPlayerInput.PITCH_LIMIT))
+	return Vector2(yaw, clampf(pitch, -BPlayerInput.PITCH_LIMIT, BPlayerInput.PITCH_LIMIT))
 
 
 func _nearest_enemy() -> BPlayer:

@@ -23,6 +23,10 @@ func show_hit(head: bool, killed: bool) -> void:
 	queue_redraw()
 
 
+func is_marker_visible() -> bool:
+	return _marker > MARKER_LIFE * 0.6
+
+
 func _process(delta: float) -> void:
 	if _marker > 0.0:
 		_marker = maxf(0.0, _marker - delta)
@@ -48,9 +52,9 @@ func _draw() -> void:
 func _draw_marker(c: Vector2) -> void:
 	var a: float = clampf(_marker / MARKER_LIFE, 0.0, 1.0)
 	var mc: Color = Color(1.0, 0.18, 0.15, a) if _marker_head else Color(1, 1, 1, a)
-	var inner: float = 7.0
-	var outer: float = 17.0 if _marker_kill else 13.0
+	var inner: float = 8.0
+	var outer: float = 22.0 if _marker_kill else 17.0
 	for d: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
 		var n: Vector2 = d.normalized()
-		draw_line(c + n * inner, c + n * outer, Color(0, 0, 0, 0.6 * a), 5.0)
-		draw_line(c + n * inner, c + n * outer, mc, 3.0)
+		draw_line(c + n * inner, c + n * outer, Color(0, 0, 0, 0.6 * a), 6.0)
+		draw_line(c + n * inner, c + n * outer, mc, 3.5)

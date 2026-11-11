@@ -42,7 +42,9 @@ func forget(peer: int) -> void:
 
 
 func peers() -> Array[int]:
-	return _histories.keys()
+	var out: Array[int] = []
+	out.assign(_histories.keys())
+	return out
 
 
 ## Pose of peer at time (Array[BCapsule]) or null: unknown, before its current life, or down now.

@@ -46,6 +46,7 @@ var _emitted: Dictionary[String, int] = {}  # "tick:kind" -> tick, to report eac
 var _shape: CapsuleShape3D
 var _shape_node: CollisionShape3D
 var _look_reset_for: int = -1
+var _local: int = -1  # cached is_local(): -1 unknown, 0 no, 1 yes
 
 @onready var input: BPlayerInput = $Input as BPlayerInput
 @onready var rollback: RollbackSynchronizer = $RollbackSynchronizer as RollbackSynchronizer
@@ -76,7 +77,11 @@ func _log_event(kind: StringName) -> void:
 
 
 func is_local() -> bool:
-	return peer_id == multiplayer.get_unique_id()
+	if _local < 0:
+		if not BLog.connected(multiplayer):
+			return false
+		_local = 1 if peer_id == multiplayer.get_unique_id() else 0
+	return _local == 1
 
 
 func facing() -> Vector3:

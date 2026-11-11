@@ -45,7 +45,7 @@ func _players() -> Array[BPlayer]:
 
 ## Server, after every tick loop: the display state is now the state of NetworkTime.tick.
 func _after_tick_loop() -> void:
-	if not multiplayer.has_multiplayer_peer() or not multiplayer.is_server():
+	if not BLog.connected(multiplayer) or not multiplayer.is_server():
 		return
 	var now: float = NetworkTime.time
 	var seen: Dictionary[int, bool] = {}

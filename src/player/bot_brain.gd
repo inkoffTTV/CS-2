@@ -39,6 +39,12 @@ func elapsed() -> float:
 	return 0.0 if _start_ms < 0 else float(Time.get_ticks_msec() - _start_ms) / 1000.0
 
 
+## Every frame (combat bots re-aim at what is drawn now).
+func frame(input: BPlayerInput) -> void:
+	if _combat != null and _start_ms >= 0:
+		_combat.frame(input, elapsed())
+
+
 func fill(input: BPlayerInput) -> void:
 	if _start_ms < 0:
 		_start_ms = Time.get_ticks_msec()

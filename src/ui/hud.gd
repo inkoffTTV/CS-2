@@ -148,6 +148,11 @@ func _on_kill(killer: int, killer_nick: String, killer_team: int, victim: int, v
 		_killed_by = killer_nick
 
 
+## A kill is in the feed and a hit marker is showing (screenshots).
+func is_combat_moment() -> bool:
+	return _kill_feed.get_child_count() > 0 and _crosshair.is_marker_visible()
+
+
 func set_status(text: String) -> void:
 	_status_label.text = text
 
@@ -163,7 +168,9 @@ func _process(delta: float) -> void:
 	_health.health = _player.health.health
 	_update_death()
 	var mp: MultiplayerAPI = _player.multiplayer
-	if mp.is_server():
+	if not BLog.connected(mp):
+		_ping_label.text = ""
+	elif mp.is_server():
 		_ping_label.text = "Host" if not Session.dedicated else ""
 	else:
 		_ping_label.text = "Ping %d ms" % roundi(NetworkTimeSynchronizer.rtt * 1000.0)
@@ -176,7 +183,7 @@ func _process(delta: float) -> void:
 			state = "ZIPLINE"
 	if _player.is_dashing():
 		state = "DASH"
-	_move_label.text = "%.1f m/s  %s" % [speed, state]
+	_move_label.text = "" if _player.is_down() else "%.1f m/s  %s" % [speed, state]
 
 
 func _update_death() -> void:

@@ -2,8 +2,8 @@ class_name BTracer
 extends MeshInstance3D
 ## A bright streak from the muzzle to the impact that fades out quickly. Cosmetic only.
 
-const LIFE: float = 0.12
-const WIDTH: float = 0.035
+const LIFE: float = 0.14
+const WIDTH: float = 0.05
 
 static var _mesh: BoxMesh
 
@@ -28,7 +28,6 @@ func _setup(from: Vector3, to: Vector3, color: Color) -> void:
 	_mat = StandardMaterial3D.new()
 	_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_mat.albedo_color = color
 	material_override = _mat
 	var length: float = from.distance_to(to)
@@ -43,5 +42,5 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	var c: Color = _mat.albedo_color
-	c.a = 1.0 - _age / LIFE
+	c.a = 0.95 * (1.0 - _age / LIFE)
 	_mat.albedo_color = c

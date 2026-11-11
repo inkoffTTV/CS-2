@@ -12,7 +12,8 @@ extends Node
 ##                       implies --connect if no mode given
 ##   --quit-after SEC    quit after SEC seconds (tests)
 ##   --screenshot PATH   host locally, spawn, save a PNG to PATH after a few frames, quit
-##   --shot-view NAME    screenshot camera: player (default) | overview | base0 | base1 | zipline
+##   --shot-view NAME    screenshot camera: player (default) | overview | base0 | base1 | zipline |
+##                       combat (player camera, waits for a kill in the feed and a hit marker)
 ##   --shot-delay SEC    seconds between the local spawn and the screenshot (default 1.5)
 
 enum Mode { NONE, HOST, JOIN, DEDICATED }
