@@ -221,3 +221,20 @@ python3 Art/Blender/build_heroes.py --ue-face-y
 ```
 
 This variant faces UE +Y like Manny and needs the mesh component at yaw −90, like the UE templates. The weapons and `weapon_r` turn with the rig. For static placeholders, or animations authored on these skeletons, the default +X export is fine.
+
+## Godot
+
+The game now runs in Godot 4.7, so the same models are also exported as binary glTF into the project (`Art/` itself is ignored by Godot via `.gdignore`):
+
+| File | What |
+|---|---|
+| `assets/heroes/clavus/clavus_posed.glb`, `assets/heroes/malleus/malleus_posed.glb` | static mesh, relaxed preview pose, weapon merged (same as `SM_Hero_*_Posed.fbx`) |
+| `assets/heroes/clavus/clavus.glb`, `assets/heroes/malleus/malleus.glb` | skeleton + skinned mesh, T-pose, same rigid-segment rig and UE-Mannequin bone names, no animations |
+| `assets/weapons/clavus_nailgun.glb`, `assets/weapons/malleus_hammer.glb` | weapons, pivot at the grip, barrels/face toward -Z |
+
+Run `python3 Art/Blender/build_heroes.py --godot` to write ONLY these files (the FBX files stay untouched). The default run also writes them, but it overwrites the FBX too, so use `--godot` alone to keep the `--ue-face-y` skeletal FBX.
+
+- **Orientation and scale:** metres, Y up, feet at y = 0. The hero faces **-Z** (Godot forward) and its right side is **+X**. The script bakes a x0.01 scale and a +90 deg Z rotation into the data (Blender cm, facing +X -> metres, facing +Y), then the glTF exporter's +Y Up conversion does the rest. Exporter settings: GLB, `export_yup=True`, no extra scale, `export_apply=False`, skins on, animations off, selection only.
+- **Materials:** glTF PBR (base colour, metallic, roughness). `*_Glow` also has emission (strength 1.2 in the glTF; the FBX keeps x4, which would clip to yellow in Godot).
+- **Verify:** `godot --headless --path . --import`, then `godot --headless --path . --script res://tools/verify_hero_assets.gd` loads every .glb in Godot and checks height, floor, facing (-Z), right side (+X) and the bone names. It exits non-zero on failure.
+- **Preview:** `xvfb-run -a godot --path . --rendering-driver opengl3 --rendering-method gl_compatibility --script res://tools/render_godot_lineup.gd` writes `Previews/godot_lineup.png` (both posed heroes seen from the front).

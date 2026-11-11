@@ -6,6 +6,7 @@ renders Workbench previews and re-imports the FBX files to verify size/orientati
     pip install bpy==5.3.0
     python3 Art/Blender/build_heroes.py            # build + export + previews + verify
     python3 Art/Blender/build_heroes.py --no-render
+    python3 Art/Blender/build_heroes.py --godot                 # ONLY the .glb files in assets/ (for Godot)
     python3 Art/Blender/build_heroes.py --export-posed-static   # ONLY SM_Hero_*_Posed.fbx (leaves the other FBX alone)
 
 Conventions (see Art/README.md):
@@ -1030,11 +1031,78 @@ def verify_posed(names, export_dir):
 # --------------------------------------------------------------------------------------
 
 
+GODOT_DIR = ROOT / "assets"
+# Blender cm, hero faces +X, right = -Y  ->  Blender metres, hero faces +Y, right = +X.
+# The glTF exporter (+Y up) then maps Blender (x, y, z) to glTF (x, z, -y), so the hero faces glTF -Z
+# (= Godot forward) with its right side on +X.
+GODOT_XFORM = Matrix.Scale(0.01, 4) @ Matrix.Rotation(math.radians(90), 4, "Z")
+
+
+def export_glb(objs, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    select_only(objs)
+    bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", use_selection=True, export_yup=True,
+                              export_apply=False, export_animations=False, export_skins=True,
+                              export_normals=True, export_materials="EXPORT", export_cameras=False,
+                              export_lights=False, export_image_format="AUTO")
+    print(f"[godot] wrote {path.relative_to(ROOT)}")
+
+
+def to_godot(*objs):
+    for o in objs:
+        o.data.transform(GODOT_XFORM)
+        o.update_tag()
+    bpy.context.view_layer.update()
+
+
+def export_godot():
+    """glTF/GLB export for Godot (metres, Y up, -Z forward). Rebuilds everything in a fresh scene."""
+    reset_scene()
+    c_arm, c_mesh = build_clavus()
+    gun = build_nailgun()
+    m_arm, m_mesh = build_malleus()
+    hammer = build_hammer()
+    for m in bpy.data.materials:  # Godot shows emission un-tonemapped: x4 of the FBX would clip orange to yellow
+        b = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes else None
+        if b and m.name.endswith("Glow"):
+            b.inputs["Emission Strength"].default_value = 1.2
+    heroes = {
+        "Clavus": (c_arm, c_mesh, gun, R("Y", -4)),
+        "Malleus": (m_arm, m_mesh, hammer, R("X", 180) @ R("Y", 6)),
+    }
+    for name, (arm, mesh, wpn, extra) in heroes.items():
+        low = name.lower()
+        posed = bake_posed_static(arm, mesh, wpn, extra, name)
+        to_godot(posed)
+        posed.name = posed.data.name = f"{low}_posed"
+        export_glb([posed], GODOT_DIR / "heroes" / low / f"{low}_posed.glb")
+        bpy.data.objects.remove(posed)
+        # back to the T-pose rest pose for the rigged export
+        for pb in arm.pose.bones:
+            pb.matrix_basis = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+    for name, (arm, mesh, wpn, extra) in heroes.items():
+        low = name.lower()
+        wpn.matrix_world = Matrix.Identity(4)
+        to_godot(arm, mesh)
+        arm.name, mesh.name = f"{low}_rig", low
+        export_glb([arm, mesh], GODOT_DIR / "heroes" / low / f"{low}.glb")
+    for wpn, fname in ((gun, "clavus_nailgun"), (hammer, "malleus_hammer")):
+        wpn.matrix_world = Matrix.Identity(4)
+        to_godot(wpn)
+        wpn.name = fname
+        export_glb([wpn], GODOT_DIR / "weapons" / f"{fname}.glb")
+
+
 def arg_value(flag, default):
     return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
 
 
 def main():
+    if "--godot" in sys.argv:  # ONLY the glTF export for Godot; FBX/previews untouched
+        export_godot()
+        print("[done]")
+        return
     # --ue-face-y : turn the heroes so they face UE +Y like the UE5 Mannequin (mesh component then needs
     #               yaw -90). Default: face UE +X (matches the current C++, mesh component unrotated).
     # --export-dir DIR : write the FBX files somewhere else (e.g. for a --ue-face-y variant).
@@ -1092,6 +1160,7 @@ def main():
     SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
     rname = "verify_report_posed.json" if only_posed else ("verify_report_face_y.json" if face_y else "verify_report.json")
     (SCRATCH_DIR / rname).write_text(json.dumps(report, indent=2, default=str))
+    export_godot()
     print("[done]")
 
 
