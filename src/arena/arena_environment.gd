@@ -17,9 +17,9 @@ static func build(arena: Node3D) -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.4
+	env.ambient_light_energy = 0.5
 	env.ambient_light_color = Color(0.72, 0.66, 0.60)
-	env.ambient_light_sky_contribution = 0.55
+	env.ambient_light_sky_contribution = 0.35
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 1.0

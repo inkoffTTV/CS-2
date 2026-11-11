@@ -1,19 +1,28 @@
 class_name BScreenshotDirector
 extends Node
 ## --screenshot PATH: waits for the local player, lets the scene settle, picks a camera
-## (--shot-view player|overview|base0|base1|zipline), saves a PNG and quits.
+## (--shot-view player|overview|base0|base1|zipline), waits --shot-delay seconds, saves a PNG, quits.
+## With --bot the local player follows a bot scenario first (e.g. ride the zipline).
 
-const SETTLE_FRAMES: int = 45
+const MIN_FRAMES: int = 10
 
 var _frames_after_spawn: int = -1
+var _spawned_ms: int = 0
 
 
 func _ready() -> void:
+	# Software rendering under Xvfb is slow; let netfox catch up on all ticks so bots move in real time.
+	NetworkTime._max_ticks_per_frame = 120
 	var game := get_parent() as BGame
-	game.spawner.local_player_spawned.connect(func(_p: BPlayer) -> void: _frames_after_spawn = 0)
-	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+	game.spawner.local_player_spawned.connect(_on_spawned)
+	get_tree().create_timer(60.0 + Session.shot_delay).timeout.connect(func() -> void:
 		push_error("screenshot: no local player after 30 s")
 		get_tree().quit(1))
+
+
+func _on_spawned(_p: BPlayer) -> void:
+	_frames_after_spawn = 0
+	_spawned_ms = Time.get_ticks_msec()
 
 
 func _process(_delta: float) -> void:
@@ -22,7 +31,9 @@ func _process(_delta: float) -> void:
 	_frames_after_spawn += 1
 	if _frames_after_spawn == 2:
 		_place_camera()
-	if _frames_after_spawn == SETTLE_FRAMES:
+	var waited: float = float(Time.get_ticks_msec() - _spawned_ms) / 1000.0
+	if _frames_after_spawn >= MIN_FRAMES and waited >= Session.shot_delay:
+		_frames_after_spawn = -1
 		_save()
 
 

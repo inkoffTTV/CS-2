@@ -108,7 +108,9 @@ func _build_ui() -> void:
 	help.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	help.offset_top = -40
 	help.offset_left = 24
-	help.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9, 0.8))
+	help.add_theme_color_override("font_color", Color(0.95, 0.93, 0.9))
+	help.add_theme_constant_override("outline_size", 6)
+	help.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	layer.add_child(help)
 
 

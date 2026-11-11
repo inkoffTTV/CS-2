@@ -18,7 +18,7 @@ script = ExtResource("3_visual")
 [node name="RollbackSynchronizer" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("4_rbs")
 root = NodePath("..")
-state_properties = Array[String]([":transform", ":velocity", ":stamina", ":dash_left", ":air_jumps", ":mode", ":zip_index", ":zip_dir", ":prev_buttons"])
+state_properties = Array[String]([":transform", ":velocity", ":stamina", ":dash_left", ":air_jumps", ":mode", ":zip_index", ":zip_dir", ":prev_buttons", ":crouched"])
 input_properties = Array[String](["Input:move", "Input:look_yaw", "Input:look_pitch", "Input:jump", "Input:dash", "Input:slide", "Input:interact", "Input:fire"])
 enable_input_broadcast = false
 

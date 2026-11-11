@@ -12,6 +12,7 @@ extends Node
 ##   --quit-after SEC    quit after SEC seconds (tests)
 ##   --screenshot PATH   host locally, spawn, save a PNG to PATH after a few frames, quit
 ##   --shot-view NAME    screenshot camera: player (default) | overview | base0 | base1 | zipline
+##   --shot-delay SEC    seconds between the local spawn and the screenshot (default 1.5)
 
 enum Mode { NONE, HOST, JOIN, DEDICATED }
 
@@ -29,6 +30,7 @@ var bot_scenario: String = "moves"
 var quit_after: float = 0.0
 var screenshot_path: String = ""
 var shot_view: String = "player"
+var shot_delay: float = 1.5
 var last_error: String = ""
 
 
@@ -108,14 +110,17 @@ func _parse_cli() -> void:
 			"--shot-view":
 				shot_view = next
 				i += 1
+			"--shot-delay":
+				shot_delay = next.to_float()
+				i += 1
 		i += 1
+	if not screenshot_path.is_empty() and mode == Mode.NONE:
+		mode = Mode.HOST
+		port = 7790 + randi() % 100
 	if bot and mode == Mode.NONE:
 		mode = Mode.JOIN
 	if bot and nickname.begins_with("Legionary"):
 		nickname = "Bot%d" % (randi() % 900 + 100)
-	if not screenshot_path.is_empty() and mode == Mode.NONE:
-		mode = Mode.HOST
-		port = 7790 + randi() % 100
 
 
 ## Starts networking for the current mode. Returns OK or an error (last_error has the text).

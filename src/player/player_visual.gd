@@ -60,7 +60,7 @@ func _process(delta: float) -> void:
 		return
 	var target_lean: float = 0.0
 	if _player.mode == BPlayer.Mode.SLIDE:
-		target_lean = deg_to_rad(55.0)
+		target_lean = deg_to_rad(45.0)
 	elif _player.is_crouched():
 		target_lean = deg_to_rad(15.0)
 	_lean = lerpf(_lean, target_lean, 1.0 - exp(-delta * 14.0))

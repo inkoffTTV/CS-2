@@ -34,9 +34,9 @@ var mode: int = Mode.MOVE
 var zip_index: int = -1
 var zip_dir: int = 1
 var prev_buttons: int = 0
+var crouched: bool = false  # short capsule (sliding or crouch-walking)
 
 var _pressed: int = 0
-var _crouched: bool = false
 var _shape: CapsuleShape3D
 var _shape_node: CollisionShape3D
 
@@ -78,7 +78,7 @@ func is_dashing() -> bool:
 
 
 func is_crouched() -> bool:
-	return _crouched
+	return crouched
 
 
 func _rollback_tick(dt: float, _tick: int, is_fresh: bool) -> void:
@@ -161,7 +161,7 @@ func _try_jump(grounded: bool, is_fresh: bool) -> bool:
 
 
 func _step_walk(dt: float, grounded: bool, wish: Vector3) -> void:
-	var max_speed: float = walk_cfg.crouch_speed if _crouched else walk_cfg.walk_speed
+	var max_speed: float = walk_cfg.crouch_speed if crouched else walk_cfg.walk_speed
 	var h: Vector3 = BMath.flatten(velocity)
 	if not is_dashing():  # no friction or steering during a dash
 		h = BWalk.step_horizontal(h, wish, dt, grounded, max_speed, walk_cfg)
@@ -268,9 +268,9 @@ func _refresh_floor() -> void:
 	velocity = saved
 
 
-func _apply_shape(crouched: bool) -> void:
-	_crouched = crouched
-	var h: float = CROUCH_HEIGHT if crouched else STAND_HEIGHT
+func _apply_shape(short: bool) -> void:
+	crouched = short
+	var h: float = CROUCH_HEIGHT if short else STAND_HEIGHT
 	_shape.height = h
 	_shape_node.position = Vector3(0.0, h * 0.5, 0.0)
 

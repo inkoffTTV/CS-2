@@ -10,11 +10,13 @@ const POS_LOG_INTERVAL: float = 1.0
 
 var local_player: BPlayer
 var _camera: BPlayerCamera
+var _spectator: Camera3D
 var _first_pos: Dictionary[int, Vector3] = {}
 var _max_moved: Dictionary[int, float] = {}
 
 
 func _ready() -> void:
+	add_child(BRollbackCatchUp.new())
 	spawner.local_player_spawned.connect(_on_local_player)
 	multiplayer.server_disconnected.connect(_on_server_lost)
 	multiplayer.connection_failed.connect(_on_connection_failed)
@@ -26,6 +28,12 @@ func _ready() -> void:
 		var director := BScreenshotDirector.new()
 		director.name = "ScreenshotDirector"
 		add_child(director)
+	_spectator = Camera3D.new()
+	_spectator.name = "SpectatorCamera"
+	_spectator.fov = 60.0
+	add_child(_spectator)
+	_spectator.look_at_from_position(Vector3(-40, 26, 36), Vector3(0, 0, 0))
+	_spectator.current = true
 	hud.set_status("Connecting to %s:%d..." % [Session.address, Session.port] if Session.mode == Session.Mode.JOIN
 		else "Starting server...")
 	if Session.start_network(multiplayer) != OK:
@@ -49,6 +57,7 @@ func _on_local_player(player: BPlayer) -> void:
 	_camera.name = "PlayerCamera"
 	add_child(_camera)
 	_camera.setup(player)
+	_spectator.queue_free()
 	hud.bind(player)
 	hud.set_status("")
 	if not Session.bot and Session.screenshot_path.is_empty() and DisplayServer.get_name() != "headless":
